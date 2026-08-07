@@ -10,5 +10,6 @@ export default async function AdminPage() {
   const { data: positions } = await supabase.from('positions').select('*').order('created_at', { ascending:false })
   const { data: assessments } = await supabase.from('assessment_roles').select('*').order('created_at', { ascending:false })
   const { data: submissions } = await supabase.from('assessment_submissions').select('id,reference_number,full_name,email,submitted_at,assessment_id').order('created_at', { ascending:false }).limit(100)
-  return <AdminDashboard departments={departments ?? []} positions={positions ?? []} assessments={assessments ?? []} submissions={submissions ?? []} email={user.email} />
+  const { data: campaigns } = await supabase.from('email_campaigns').select('id,subject,recipient_count,sent_count,failed_count,status,created_at').order('created_at', { ascending:false }).limit(20)
+  return <AdminDashboard departments={departments ?? []} positions={positions ?? []} assessments={assessments ?? []} submissions={submissions ?? []} campaigns={campaigns ?? []} email={user.email} />
 }
