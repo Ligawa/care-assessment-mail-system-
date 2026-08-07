@@ -5,8 +5,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { AuthChangeEvent } from '@supabase/supabase-js'
 
-const IDLE_TIMEOUT_MS = 30 * 60 * 1000
-const WARNING_MS = 2 * 60 * 1000
+const IDLE_TIMEOUT_MS = 3 * 60 * 1000
+const WARNING_MS = 30 * 1000
 
 export default function AdminSessionGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
