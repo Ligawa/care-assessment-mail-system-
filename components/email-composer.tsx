@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import sanitizeHtml from 'sanitize-html'
 import { Code2, Eye, Italic, Link2, List, ListOrdered, Mail, Send, Strikethrough, Underline } from 'lucide-react'
 
-type Campaign = { id: string; subject: string; recipient_count: number; sent_count: number; failed_count: number; status: string; created_at: string }
+type Campaign = { id: string; subject: string; html_body: string; text_body: string | null; recipients: string[]; recipient_count: number; sent_count: number; failed_count: number; status: string; error_details: { email: string; error: string }[] | null; created_at: string }
+type ResendDraft = { subject: string; html: string; text: string; recipients: string[] }
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -19,6 +20,7 @@ export default function EmailComposer({ campaigns }: { campaigns: Campaign[] }) 
   const [preview, setPreview] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null)
 
   const parsedRecipients = useMemo(() => recipients.split(/[\s,;]+/).map(value => value.trim().toLowerCase()).filter(Boolean), [recipients])
   const uniqueRecipients = [...new Set(parsedRecipients)]
@@ -51,6 +53,18 @@ export default function EmailComposer({ campaigns }: { campaigns: Campaign[] }) 
   function syncEditor() { if (editorRef.current) setHtmlBody(editorRef.current.innerHTML) }
   function toggleSource() { syncEditor(); setPreview(false); setSourceMode(value => !value) }
   function togglePreview() { syncEditor(); setSourceMode(false); setPreview(value => !value) }
+
+  function loadFailedDraft(campaign: Campaign) {
+    const failures = (campaign.error_details || []).map(item => item.email.trim().toLowerCase())
+    setSelectedCampaign(campaign)
+    setRecipients(failures.join(', '))
+    setSubject(campaign.subject.trim())
+    setHtmlBody(campaign.html_body.trim())
+    setTextBody((campaign.text_body || '').trim())
+    setSourceMode(false); setPreview(false); setMessage(`Loaded ${failures.length} failed recipient${failures.length === 1 ? '' : 's'} for editing.`)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  function openCampaign(campaign: Campaign) { setSelectedCampaign(campaign) }
 
   async function sendEmail(event: React.FormEvent) {
     event.preventDefault(); setMessage('')

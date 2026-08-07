@@ -11,7 +11,7 @@ type Department = { id: string; name: string; description: string | null; status
 type Position = { id: string; title: string; slug: string; description: string | null; department: string | null; department_id: string | null; location: string | null; status: string }
 type Assessment = { id: string; title: string; description: string | null; status: string; access_code: string; duration_minutes: number; question_count: number; salary_min: number | null; salary_max: number | null; salary_currency: string; position_id: string | null; department_id: string | null }
 type Section = 'Overview' | 'Positions' | 'Departments' | 'Assessments' | 'Candidates' | 'Emails'
-type Campaign = { id: string; subject: string; recipient_count: number; sent_count: number; failed_count: number; status: string; created_at: string }
+type Campaign = { id: string; subject: string; html_body: string; text_body: string | null; recipients: string[]; recipient_count: number; sent_count: number; failed_count: number; status: string; error_details: { email: string; error: string }[] | null; created_at: string }
 
 export default function AdminDashboard({ positions, assessments, departments, submissions, campaigns, email }: { positions: Position[]; assessments: Assessment[]; departments: Department[]; submissions: any[]; campaigns: Campaign[]; email: string }) {
   const supabase = createClient()

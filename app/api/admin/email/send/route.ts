@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 
 const requestSchema = z.object({
-  recipients: z.array(z.string().email()).min(1).max(100),
+  recipients: z.array(z.string().trim().email()).min(1).max(100),
   subject: z.string().trim().min(1).max(200),
   html: z.string().min(1).max(1_000_000),
   text: z.string().max(200_000).optional(),
