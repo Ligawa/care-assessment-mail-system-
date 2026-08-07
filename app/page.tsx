@@ -1,5 +1,7 @@
-import CareAssessmentApp from '@/components/care-assessment-app'
+import Link from 'next/link'
 
-export default function Page() {
-  return <CareAssessmentApp />
+const logo = 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Care%20Intl%20logo-8dXiV9R7mb3d8yCbmDLtahqHcQJ2Xm.png'
+
+export default function Home() {
+  return <main className="min-h-screen bg-background"><header className="border-b border-border bg-card"><div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5"><img src={logo} alt="CARE International" className="h-12 w-auto" /><Link href="/admin/login" className="rounded-full border border-border px-4 py-2 text-sm font-semibold hover:bg-muted">Admin sign in</Link></div></header><section className="mx-auto max-w-6xl px-5 py-20"><div className="max-w-3xl"><p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">CARE International · Candidate portal</p><h1 className="mt-5 text-balance text-5xl font-semibold tracking-tight sm:text-7xl">Your assessment starts with a link.</h1><p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">Use the secure assessment link shared by the CARE hiring team. Your access code opens the role-specific assessment, profile form, timer, and submission receipt.</p><Link href="/assessment" className="mt-8 inline-flex rounded-full bg-primary px-6 py-3.5 font-semibold text-primary-foreground">Open an assessment link</Link></div><div className="mt-20 grid gap-6 border-t border-border pt-10 sm:grid-cols-3"><div><p className="font-semibold">Role-specific scenarios</p><p className="mt-2 text-sm leading-6 text-muted-foreground">Questions are configured for the position you applied for.</p></div><div><p className="font-semibold">Secure candidate details</p><p className="mt-2 text-sm leading-6 text-muted-foreground">Complete your profile and upload a passport-size photo before starting.</p></div><div><p className="font-semibold">Clear next steps</p><p className="mt-2 text-sm leading-6 text-muted-foreground">Receive a reference number and salary range after submission.</p></div></div></section></main>
 }
