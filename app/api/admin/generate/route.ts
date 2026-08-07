@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     const input = requestSchema.parse(await request.json())
     const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY })
     const result = await generateText({
-      model: google('gemini-2.5-flash'),
+      model: google('gemini-3.5-flash'),
       output: Output.object({ schema: draftSchema }),
       prompt: `Create a structured skill assessment draft for CARE International. Position: ${input.title}. Context: ${input.description || 'No additional context.'}. Generate exactly ${input.question_count} questions. Every question must be scenario-based, include one competency, exactly four distinct answer options, and answer_key equal to one option. Recommend a realistic salary range in USD. Return only the requested structured object.`,
     })
