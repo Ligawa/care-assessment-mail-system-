@@ -6,8 +6,9 @@ export default async function AdminPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user?.email?.toLowerCase().endsWith('@care-intrenational.org')) redirect('/admin/login')
+  const { data: departments } = await supabase.from('departments').select('*').order('name', { ascending: true })
   const { data: positions } = await supabase.from('positions').select('*').order('created_at', { ascending:false })
   const { data: assessments } = await supabase.from('assessment_roles').select('*').order('created_at', { ascending:false })
   const { data: submissions } = await supabase.from('assessment_submissions').select('id,reference_number,full_name,email,submitted_at,assessment_id').order('created_at', { ascending:false }).limit(100)
-  return <AdminDashboard positions={positions ?? []} assessments={assessments ?? []} submissions={submissions ?? []} email={user.email} />
+  return <AdminDashboard departments={departments ?? []} positions={positions ?? []} assessments={assessments ?? []} submissions={submissions ?? []} email={user.email} />
 }

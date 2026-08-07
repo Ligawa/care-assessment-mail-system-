@@ -12,6 +12,8 @@ export default function AssessmentClient({ assessment, questions }: Props) {
   const [photoPreview, setPhotoPreview] = useState('')
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [questionIndex, setQuestionIndex] = useState(0)
+  const timerKey = `care-assessment-deadline-${assessment.id}`
+  const profileKey = `care-assessment-profile-${assessment.id}`
   const [seconds, setSeconds] = useState(assessment.duration_minutes * 60)
   const [reference, setReference] = useState('')
   const [busy, setBusy] = useState(false)
@@ -19,12 +21,30 @@ export default function AssessmentClient({ assessment, questions }: Props) {
   const current = questions[questionIndex]
   const time = useMemo(() => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`, [seconds])
 
-  useEffect(() => { if (step !== 'test') return; const id = setInterval(() => setSeconds(value => Math.max(0, value - 1)), 1000); return () => clearInterval(id) }, [step])
+  useEffect(() => {
+    const savedProfile = window.sessionStorage.getItem(profileKey)
+    if (savedProfile) setProfile(previous => ({ ...previous, ...JSON.parse(savedProfile) }))
+    const deadline = window.sessionStorage.getItem(timerKey)
+    if (deadline && Number(deadline) > Date.now()) {
+      setSeconds(Math.ceil((Number(deadline) - Date.now()) / 1000))
+      setStep('test')
+    } else if (deadline) window.sessionStorage.removeItem(timerKey)
+  }, [profileKey, timerKey])
+  useEffect(() => {
+    if (step !== 'test') return
+    const tick = () => {
+      const deadline = Number(window.sessionStorage.getItem(timerKey))
+      setSeconds(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)))
+    }
+    tick()
+    const id = window.setInterval(tick, 250)
+    return () => window.clearInterval(id)
+  }, [step, timerKey])
   useEffect(() => { if (seconds === 0 && step === 'test') void submit() }, [seconds, step])
 
   function updateProfile(key: string, value: string) { setProfile(previous => ({ ...previous, [key]: value })) }
   function selectPhoto(file: File | null) { setPhoto(file); setPhotoPreview(file ? URL.createObjectURL(file) : '') }
-  function start() { if (!profile.name || !profile.email || !profile.location || !profile.experience || !photo) { setError('Complete every field and upload your passport-size photo.'); return } setError(''); setStep('test') }
+  function start() { if (!profile.name || !profile.email || !profile.location || !profile.experience || !photo) { setError('Complete every field and upload your passport-size photo.'); return } setError(''); window.sessionStorage.setItem(profileKey, JSON.stringify(profile)); window.sessionStorage.setItem(timerKey, String(Date.now() + assessment.duration_minutes * 60 * 1000)); setSeconds(assessment.duration_minutes * 60); setStep('test') }
   function next() { if (!current || !answers[current.id]) return; if (questionIndex === questions.length - 1) void submit(); else setQuestionIndex(value => value + 1) }
   async function submit() {
     if (busy) return
@@ -33,7 +53,7 @@ export default function AssessmentClient({ assessment, questions }: Props) {
       let photoPathname = null
       if (photo) { const form = new FormData(); form.append('file', photo); const upload = await fetch('/api/candidate/photo', { method: 'POST', body: form }); const data = await upload.json(); if (!upload.ok) throw new Error(data.error); photoPathname = data.pathname }
       const response = await fetch('/api/assessments/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assessmentId: assessment.id, fullName: profile.name, email: profile.email, currentLocation: profile.location, yearsExperience: profile.experience, photoPathname, availableForDeployment: profile.deployment === 'yes', deploymentAvailability: profile.availability, salaryExpectation: profile.salary, answers }) })
-      const data = await response.json(); if (!response.ok) throw new Error(data.error); setReference(data.referenceNumber); setStep('done')
+      const data = await response.json(); if (!response.ok) throw new Error(data.error); window.sessionStorage.removeItem(timerKey); window.sessionStorage.removeItem(profileKey); setReference(data.referenceNumber); setStep('done')
     } catch (submissionError: any) { setError(submissionError.message || 'Submission failed.') } finally { setBusy(false) }
   }
 
