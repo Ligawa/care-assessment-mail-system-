@@ -69,7 +69,7 @@ export default function AdminDashboard({ positions, assessments, departments, su
     const result = await supabase.from('assessment_roles').insert({ ...assessmentForm, slug: slugify(assessmentForm.title), access_code: `CARE-${crypto.randomUUID().slice(0, 8).toUpperCase()}`, position_id: assessmentForm.position_id, department_id: assessmentForm.department_id, duration_minutes: duration, question_count: count, salary_min: min, salary_max: max }).select('id').single()
     if (result.error) { setBusy(false); flash(result.error.message); return }
     if (result.data && aiDraft?.questions.length) {
-      const questionRows = aiDraft.questions.map((question, index) => ({ assessment_id: result.data.id, position: index + 1, competency: question.competency, prompt: question.prompt, options: question.options, answer_key: question.answer_key, source: 'ai' }))
+      const questionRows = aiDraft.questions.map((question, index) => ({ assessment_id: result.data.id, position: index + 1, competency: question.competency, prompt: question.prompt, options: question.options, answer_key: question.answer_key, source: 'gemini' }))
       const questionResult = await supabase.from('assessment_questions').insert(questionRows)
       if (questionResult.error) { setBusy(false); flash(`Assessment created, but questions could not be saved: ${questionResult.error.message}`); await refresh(); return }
     }
