@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     const input = requestSchema.parse(await request.json())
     const recipients = [...new Set(input.recipients.map(email => email.trim().toLowerCase()))]
     if (recipients.length > 100) return NextResponse.json({ error: 'You can send to a maximum of 100 recipients.' }, { status: 400 })
-    const html = sanitizeHtml(input.html, { allowedTags, allowedAttributes, allowedSchemes: ['http', 'https', 'mailto'] })
+    const html = sanitizeHtml(input.html.trimEnd(), { allowedTags, allowedAttributes, allowedSchemes: ['http', 'https', 'mailto'] }).trimEnd()
     const text = input.text?.trim() || sanitizeHtml(html, { allowedTags: [], allowedAttributes: {} }).replace(/\s+/g, ' ').trim()
     const { data: campaign, error: insertError } = await supabase.from('email_campaigns').insert({ subject: input.subject.trim(), html_body: html, text_body: text, recipients, recipient_count: recipients.length, status: 'sending', created_by: user.id }).select('id').single()
     if (insertError || !campaign) return NextResponse.json({ error: insertError?.message || 'Could not create campaign history.' }, { status: 500 })
