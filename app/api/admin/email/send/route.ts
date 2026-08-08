@@ -13,6 +13,32 @@ const requestSchema = z.object({
 
 const allowedTags = [...sanitizeHtml.defaults.allowedTags, 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td']
 const allowedAttributes = { ...sanitizeHtml.defaults.allowedAttributes, '*': ['style', 'class'], a: ['href', 'name', 'target', 'rel'], img: ['src', 'alt', 'width', 'height'] }
+const BATCH_SIZE = 10
+const BATCH_DELAY_MS = 250
+const MAX_RETRIES = 3
+
+function wait(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)) }
+function isTransientError(error: unknown) {
+  const candidate = error as { statusCode?: number; status?: number; message?: string }
+  const status = candidate?.statusCode ?? candidate?.status
+  return status === undefined || status === 408 || status === 425 || status === 429 || status >= 500 || /timeout|temporar|rate.?limit|network|fetch/i.test(candidate?.message || '')
+}
+
+async function sendWithRetry(send: () => Promise<{ error?: { message: string } | null }>) {
+  let lastError: unknown
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
+    try {
+      const result = await send()
+      if (!result.error || !isTransientError(result.error)) return result
+      lastError = result.error
+    } catch (error) {
+      lastError = error
+      if (!isTransientError(error)) throw error
+    }
+    if (attempt < MAX_RETRIES) await wait(400 * 2 ** attempt)
+  }
+  throw lastError instanceof Error ? lastError : new Error('Email delivery failed after retries.')
+}
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -28,10 +54,23 @@ export async function POST(request: Request) {
     const { data: campaign, error: insertError } = await supabase.from('email_campaigns').insert({ subject: input.subject.trim(), html_body: html, text_body: text, recipients, recipient_count: recipients.length, status: 'sending', created_by: user.id }).select('id').single()
     if (insertError || !campaign) return NextResponse.json({ error: insertError?.message || 'Could not create campaign history.' }, { status: 500 })
     const resend = new Resend(process.env.RESEND_API_KEY)
-    const results = await Promise.allSettled(recipients.map(to => resend.emails.send({ from: 'CARE International <careers@care-intrenational.org>', to: [to], subject: input.subject.trim(), html, text })))
-    const sentCount = results.filter(result => result.status === 'fulfilled' && !result.value.error).length
-    const failures = results.map((result, index) => result.status === 'rejected' ? { email: recipients[index], error: result.reason instanceof Error ? result.reason.message : 'Send failed' } : result.value.error ? { email: recipients[index], error: result.value.error.message } : null).filter(Boolean)
-    const failedCount = recipients.length - sentCount
+    const results: ({ email: string; error?: string } | null)[] = []
+    for (let start = 0; start < recipients.length; start += BATCH_SIZE) {
+      const batch = recipients.slice(start, start + BATCH_SIZE)
+      const batchResults = await Promise.all(batch.map(async to => {
+        try {
+          const result = await sendWithRetry(() => resend.emails.send({ from: 'CARE International <careers@care-intrenational.org>', to: [to], subject: input.subject.trim(), html, text, headers: { 'X-Entity-Ref-ID': campaign.id } }))
+          return result.error ? { email: to, error: result.error.message } : null
+        } catch (error) {
+          return { email: to, error: error instanceof Error ? error.message : 'Send failed' }
+        }
+      }))
+      results.push(...batchResults)
+      if (start + BATCH_SIZE < recipients.length) await wait(BATCH_DELAY_MS)
+    }
+    const failures = results.filter((result): result is { email: string; error: string } => Boolean(result))
+    const sentCount = recipients.length - failures.length
+    const failedCount = failures.length
     const status = failedCount === 0 ? 'sent' : sentCount === 0 ? 'failed' : 'partial'
     await supabase.from('email_campaigns').update({ sent_count: sentCount, failed_count: failedCount, status, error_details: failures, completed_at: new Date().toISOString() }).eq('id', campaign.id)
     return NextResponse.json({ campaignId: campaign.id, recipientCount: recipients.length, sentCount, failedCount, failures })
