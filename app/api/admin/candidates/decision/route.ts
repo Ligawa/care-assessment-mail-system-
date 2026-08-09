@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json())
   if (!parsed.success) return NextResponse.json({ error: 'Invalid candidate decision.' }, { status: 400 })
 
-  const { data: candidate, error: candidateError } = await supabase.from('assessment_submissions').select('id,full_name,email,score,total_questions,decision_status').eq('id', parsed.data.submissionId).single()
+  const { data: candidate, error: candidateError } = await supabase.from('assessment_submissions').select('id,full_name,email,decision_status').eq('id', parsed.data.submissionId).single()
   if (candidateError || !candidate) return NextResponse.json({ error: 'Candidate not found.' }, { status: 404 })
 
   await supabase.from('assessment_submissions').update({ decision_status: parsed.data.decision, decision_at: new Date().toISOString(), notification_status: 'sending', notification_error: null }).eq('id', candidate.id)
