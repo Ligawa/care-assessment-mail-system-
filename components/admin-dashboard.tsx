@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { BarChart3, BriefcaseBusiness, Building2, ClipboardCheck, FileText, LayoutDashboard, LogOut, Mail, Pencil, Plus, Trash2, Users, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import EmailComposer from '@/components/email-composer'
@@ -16,7 +17,9 @@ type Candidate = { id: string; reference_number: string; full_name: string; emai
 
 export default function AdminDashboard({ positions, assessments, departments, submissions, campaigns, email }: { positions: Position[]; assessments: Assessment[]; departments: Department[]; submissions: any[]; campaigns: Campaign[]; email: string }) {
   const supabase = createClient()
-  const [active, setActive] = useState<Section>('Overview')
+  const searchParams = useSearchParams()
+  const requestedSection = searchParams.get('section') as Section | null
+  const [active, setActive] = useState<Section>(requestedSection && ['Overview', 'Positions', 'Departments', 'Assessments', 'Candidates', 'Emails'].includes(requestedSection) ? requestedSection : 'Overview')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [messageKind, setMessageKind] = useState<'success' | 'error'>('success')
