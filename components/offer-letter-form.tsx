@@ -1,0 +1,15 @@
+'use client'
+
+import { useState } from 'react'
+import { FileText, LoaderCircle, Send } from 'lucide-react'
+
+export default function OfferLetterForm({ candidateId, disabled = false }: { candidateId: string; disabled?: boolean }) {
+  const [form, setForm] = useState({ startDate: '', dutyStation: 'Chad', department: 'Operations', contractType: 'Fixed-Term', hrReference: '', documentDeadline: '' })
+  const [status, setStatus] = useState('')
+  const [busy, setBusy] = useState(false)
+  async function issueOffer(event: React.FormEvent) { event.preventDefault(); setBusy(true); setStatus('')
+    try { const response = await fetch('/api/admin/candidates/offer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ submissionId: candidateId, ...form }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Offer could not be sent.'); setStatus(data.message) } catch (error) { setStatus(error instanceof Error ? error.message : 'Offer could not be sent.') } finally { setBusy(false) }
+  }
+  const field = (key: keyof typeof form, label: string, type = 'text') => <label className="grid gap-1.5 text-sm font-semibold"><span>{label}</span><input required disabled={disabled || busy} type={type} value={form[key]} onChange={event => setForm(previous => ({ ...previous, [key]: event.target.value }))} className="h-10 rounded-xl border border-border bg-background px-3 font-normal outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:opacity-60" /></label>
+  return <section className="mt-6 rounded-3xl border border-primary/20 bg-primary/5 p-5"><div className="flex items-start gap-3"><div className="rounded-xl bg-primary/10 p-2 text-primary"><FileText className="size-5" /></div><div><h2 className="font-semibold">Issue conditional offer</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">Complete the core offer details. A personalized PDF will be emailed to the passed candidate.</p></div></div><form onSubmit={issueOffer} className="mt-5 grid gap-4 sm:grid-cols-2">{field('startDate', 'Proposed start date', 'date')}{field('dutyStation', 'Duty station')}{field('department', 'Department / programme')}{field('contractType', 'Contract type')}{field('hrReference', 'HR reference')}{field('documentDeadline', 'Document submission deadline', 'date')}<button type="submit" disabled={disabled || busy} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2">{busy ? <LoaderCircle className="size-4 animate-spin" /> : <Send className="size-4" />}{busy ? 'Generating and sending…' : 'Issue offer and notify candidate'}</button></form>{status && <p className="mt-4 rounded-xl bg-background px-3 py-2 text-sm text-muted-foreground">{status}</p>}</section>
+}
