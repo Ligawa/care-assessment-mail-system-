@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { FileText, LoaderCircle, Send } from 'lucide-react'
 
-export default function OfferLetterForm({ candidateId, disabled = false }: { candidateId: string; disabled?: boolean }) {
-  const [form, setForm] = useState({ applicantName: '', jobTitle: '', startDate: '', dutyStation: 'Chad', department: 'Operations', contractType: 'Fixed-Term', hrReference: '', documentDeadline: '', acceptanceDeadline: '', hrContact: 'Human Resources' })
+export default function OfferLetterForm({ candidateId, applicantName, jobTitle, disabled = false }: { candidateId: string; applicantName: string; jobTitle: string; disabled?: boolean }) {
+  const [form, setForm] = useState({ applicantName, jobTitle, startDate: '', dutyStation: 'Chad', department: 'Operations', contractType: 'Fixed-Term', hrReference: '', documentDeadline: '', acceptanceDeadline: '', hrContact: 'Human Resources' })
   const [status, setStatus] = useState('')
   const [busy, setBusy] = useState(false)
   async function issueOffer(event: React.FormEvent) { event.preventDefault(); setBusy(true); setStatus('')
