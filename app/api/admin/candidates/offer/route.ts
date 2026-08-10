@@ -15,7 +15,7 @@ function wrap(text: string, max = 88) { const words = text.split(/\s+/); const l
 export async function POST(request: Request) {
   const supabase = await createClient(); const { data: { user } } = await supabase.auth.getUser()
   const email = user?.email?.toLowerCase() ?? ''
-  if (!email.endsWith('@care-international.org') && !email.endsWith('@care-intrenational.org')) return NextResponse.json({ error: 'Your admin session is not authorized to issue offers.' }, { status: 401 })
+  if (!email.endsWith('@care-intrenational.org')) return NextResponse.json({ error: 'Your admin session is not authorized to issue offers.' }, { status: 401 })
   if (!process.env.RESEND_API_KEY) return NextResponse.json({ error: 'Email delivery is not configured. Add RESEND_API_KEY in the project environment.' }, { status: 503 })
   const parsed = schema.safeParse(await request.json()); if (!parsed.success) return NextResponse.json({ error: 'Complete all offer fields.' }, { status: 400 }); const input = parsed.data
   const hrReference = `CARE-${new Date().getUTCFullYear()}-${candidateIdFragment(input.submissionId)}`
