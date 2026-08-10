@@ -13,7 +13,7 @@ export default async function CandidateDetailPage({ params }: { params: Promise<
   if (!user?.email?.toLowerCase().endsWith('@care-intrenational.org')) redirect('/admin/login')
   const { data: candidate } = await supabase.from('assessment_submissions').select('*').eq('id', id).maybeSingle()
   if (!candidate) notFound()
-  const { data: assessment } = await supabase.from('assessments').select('title,position_id').eq('id', candidate.assessment_id).maybeSingle()
+  const { data: assessment } = await supabase.from('assessment_roles').select('title,position_id').eq('id', candidate.assessment_id).maybeSingle()
   const { data: position } = assessment?.position_id ? await supabase.from('positions').select('title').eq('id', assessment.position_id).maybeSingle() : { data: null }
   const positionTitle = position?.title?.trim() || ''
   const { data: questions } = await supabase.from('assessment_questions').select('id,position,competency,prompt,options,answer_key').eq('assessment_id', candidate.assessment_id).order('position', { ascending: true })
