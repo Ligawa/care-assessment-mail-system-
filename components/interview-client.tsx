@@ -4,13 +4,13 @@ import { useEffect, useRef, useState } from 'react'
 import { Camera, CheckCircle2, Mic, MicOff, Phone, Volume2 } from 'lucide-react'
 
 type Utterance = { speaker: 'Emmy Nana' | 'Candidate'; text: string }
-type Props = { role: string; accessCode: string }
+type Props = { role: string; accessCode: string; voiceUri: string }
 type Recognition = { continuous: boolean; interimResults: boolean; lang: string; start: () => void; stop: () => void; onresult: ((event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null }
 type RecognitionConstructor = new () => Recognition
 
 declare global { interface Window { SpeechRecognition?: RecognitionConstructor; webkitSpeechRecognition?: RecognitionConstructor } }
 
-export default function InterviewClient({ role, accessCode }: Props) {
+export default function InterviewClient({ role, accessCode, voiceUri }: Props) {
   const [name, setName] = useState('')
   const [started, setStarted] = useState(false)
   const [listening, setListening] = useState(false)
@@ -27,7 +27,7 @@ export default function InterviewClient({ role, accessCode }: Props) {
   function speak(text: string) {
     window.speechSynthesis.cancel()
     const voices = window.speechSynthesis.getVoices()
-    const voice = voices.find(item => /Microsoft (Jenny|Aria|Sonia)|Google UK English Female|Samantha|Karen|Moira|Zira/i.test(item.name)) || voices.find(item => /^en(-|_)/i.test(item.lang))
+    const voice = voices.find(item => voiceUri && item.voiceURI === voiceUri) || voices.find(item => /Microsoft (Jenny|Aria|Sonia)|Google UK English Female|Samantha|Karen|Moira|Zira/i.test(item.name)) || voices.find(item => /^en(-|_)/i.test(item.lang))
     const utterance = new SpeechSynthesisUtterance(text)
     if (voice) utterance.voice = voice
     utterance.lang = 'en-US'; utterance.rate = 0.9; utterance.pitch = 1.02

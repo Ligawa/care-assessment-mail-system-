@@ -7,5 +7,6 @@ export default async function InterviewPage({ params }: { params: Promise<{ acce
   const supabase = await createClient()
   const { data: assessment } = await supabase.from('assessment_roles').select('title,access_code,status').eq('access_code', accessCode.toUpperCase()).eq('status', 'published').maybeSingle()
   if (!assessment) notFound()
-  return <InterviewClient role={assessment.title} accessCode={assessment.access_code} />
+  const { data: voice } = await supabase.from('interview_settings').select('voice_uri,voice_name,voice_lang').eq('id', 1).maybeSingle()
+  return <InterviewClient role={assessment.title} accessCode={assessment.access_code} voiceUri={voice?.voice_uri || ''} />
 }
