@@ -1,0 +1,11 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+
+export default function AdminVoiceSelector() {
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
+  const [selected, setSelected] = useState('')
+  useEffect(() => { const load = () => setVoices(window.speechSynthesis.getVoices().filter(voice => /^en(-|_)/i.test(voice.lang))); load(); window.speechSynthesis.addEventListener('voiceschanged', load); return () => window.speechSynthesis.removeEventListener('voiceschanged', load) }, [])
+  function preview() { const voice = voices.find(item => item.voiceURI === selected); if (!voice) return; window.speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance('Hello, I am Emmy Nana. Welcome to your CARE International interview.'); utterance.voice = voice; utterance.rate = 0.9; window.speechSynthesis.speak(utterance) }
+  return <main className="min-h-screen bg-[#f7f8f6] p-8 text-[#173f35]"><div className="mx-auto max-w-2xl rounded-3xl bg-white p-8 shadow-lg"><p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#e87518]">Interview settings</p><h1 className="mt-2 text-3xl font-semibold">Emmy Nana voice</h1><p className="mt-3 text-[#5d7169]">Listen to available browser voices and choose the voice used on this device for live interview previews.</p><select value={selected} onChange={event => setSelected(event.target.value)} className="mt-8 h-12 w-full rounded-xl border px-4"><option value="">Select a voice</option>{voices.map(voice => <option key={voice.voiceURI} value={voice.voiceURI}>{voice.name} — {voice.lang}</option>)}</select><button onClick={preview} disabled={!selected} className="mt-4 rounded-xl bg-[#e87518] px-5 py-3 font-semibold text-white disabled:opacity-40">Listen to voice</button><p className="mt-4 text-sm text-[#6b7f77]">Voice availability depends on the browser and operating system. The selected voice is used for the current device session.</p></div></main>
+}
