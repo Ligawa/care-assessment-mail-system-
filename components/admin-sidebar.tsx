@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BarChart3, BriefcaseBusiness, Building2, ClipboardCheck, LogOut, Mail, Mic2, Users } from 'lucide-react'
+import { BarChart3, BriefcaseBusiness, Building2, ClipboardCheck, LogOut, Mail, Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 const logo = 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Care%20Intl%20logo-8dXiV9R7mb3d8yCbmDLtahqHcQJ2Xm.png'
@@ -13,7 +13,6 @@ const items = [
   { label: 'Assessments', href: '/admin?section=Assessments', icon: ClipboardCheck },
   { label: 'Candidates', href: '/admin?section=Candidates', icon: Users },
   { label: 'Emails', href: '/admin?section=Emails', icon: Mail },
-  { label: 'Interview voices', href: '/admin/interview-voices', icon: Mic2 },
 ]
 
 export default function AdminSidebar() {
