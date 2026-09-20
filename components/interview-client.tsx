@@ -68,6 +68,7 @@ export default function InterviewClient({ role, accessCode, voiceUri }: Props) {
 
   async function begin() {
     if (!name.trim()) return setError('Please enter your name before starting.')
+    if (!email.trim() || !/^\S+@\S+\.\S+$/.test(email.trim())) return setError('Please enter a valid email address before starting.')
     try { const media = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true }); stream.current = media; setStarted(true); requestAnimationFrame(() => { if (video.current) { video.current.srcObject = media; video.current.onloadeddata = () => setCameraReady(true); void video.current.play().catch(() => setError('Your camera opened, but the preview could not start. Please check browser camera permissions and reload.')) } }); void askEmmy([]) } catch { setError('Please allow camera and microphone access to join the interview.') }
   }
 
