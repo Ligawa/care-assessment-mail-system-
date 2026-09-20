@@ -1,17 +1,12 @@
+import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import AdminSidebar from '@/components/admin-sidebar'
+import { createClient } from '@/lib/supabase/server'
 
-export default function InterviewsPage() {
-  return (
-    <div className="min-h-screen bg-[#faf8f2] lg:flex">
-      <AdminSidebar />
-      <main className="flex-1 p-6 lg:p-12">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#f47700]">CARE International</p>
-        <h1 className="mt-3 text-4xl font-semibold text-[#101b30]">Interviews</h1>
-        <section className="mt-10 rounded-[28px] border border-[#ded8ca] bg-white p-8">
-          <h2 className="text-2xl font-semibold text-[#101b30]">Live interviews</h2>
-          <p className="mt-3 max-w-2xl text-lg leading-8 text-[#455c7d]">Review candidate interview sessions and access the live interview experience from the links sent to applicants.</p>
-        </section>
-      </main>
-    </div>
-  )
+export default async function InterviewsPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/admin/login')
+  const { data: interviews } = await supabase.from('interview_sessions').select('id,candidate_name,role,status,decision_status,completed_at,assessment').order('completed_at', { ascending: false })
+  return <div className="min-h-screen bg-[#faf8f2] lg:flex"><AdminSidebar /><main className="min-w-0 flex-1 p-6 lg:p-12"><p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#f47700]">CARE International</p><h1 className="mt-3 text-4xl font-semibold text-[#101b30]">Interviews</h1><p className="mt-3 max-w-2xl text-lg text-[#455c7d]">Review completed Emmy Nana interviews, open individual scores, issue skills assessments, and record outcomes.</p><section className="mt-10 rounded-[28px] border border-[#ded8ca] bg-white p-6"><div className="grid gap-3">{(interviews ?? []).map(interview => { const assessment = interview.assessment as { recommendation?: string; summary?: string } | null; return <Link key={interview.id} href={`/admin/interviews/${interview.id}`} className="rounded-2xl border border-[#ded8ca] p-5 transition hover:border-[#f47700]"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-semibold text-[#101b30]">{interview.candidate_name}</h2><p className="mt-1 text-sm text-[#455c7d]">{interview.role} · {new Date(interview.completed_at).toLocaleString()}</p></div><div className="flex gap-2"><span className="rounded-full bg-[#f4eee4] px-3 py-1 text-xs font-semibold capitalize text-[#455c7d]">{interview.decision_status.replace('_', ' ')}</span><span className="rounded-full bg-[#eaf4ed] px-3 py-1 text-xs font-semibold text-[#36835d]">{assessment?.recommendation || 'Score ready'}</span></div></div><p className="mt-4 line-clamp-2 text-sm text-[#455c7d]">{assessment?.summary || 'Open this interview to review the transcript and score.'}</p></Link>})}{(!interviews || interviews.length === 0) && <div className="rounded-2xl border border-dashed border-[#ded8ca] p-10 text-center text-[#455c7d]">Completed interviews will appear here after an applicant finishes an interview.</div>}</div></section></main></div>
 }
