@@ -2,7 +2,7 @@ import { generateText } from 'ai'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { z } from 'zod'
 
-const schema = z.object({ accessCode: z.string().min(1), role: z.string().min(1), candidateName: z.string().min(1), transcript: z.array(z.object({ speaker: z.enum(['Emmy Nana', 'Candidate']), text: z.string().min(1) })).min(2).max(40) })
+const schema = z.object({ accessCode: z.string().min(1), role: z.string().min(1), candidateName: z.string().min(1), candidateEmail: z.string().email(), transcript: z.array(z.object({ speaker: z.enum(['Emmy Nana', 'Candidate']), text: z.string().min(1) })).min(2).max(40) })
 
 export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json())
@@ -12,9 +12,11 @@ export async function POST(request: Request) {
   const result = await generateText({ model: google('gemini-3.5-flash'), system: 'You are a fair recruitment assessor. Return only valid JSON with keys summary, strengths, concerns, scores, recommendation. scores must contain communication, roleKnowledge, judgment, motivation, and experience as integers from 1 to 5. recommendation must be one of Strongly recommend, Recommend, Consider, Do not recommend. Base every conclusion only on the transcript.', prompt: `Role: ${parsed.data.role}\nCandidate: ${parsed.data.candidateName}\nTranscript:\n${parsed.data.transcript.map(item => `${item.speaker}: ${item.text}`).join('\n')}` })
   let assessment: unknown
   try { assessment = JSON.parse(result.text.replace(/^```json\s*|\s*```$/g, '')) } catch { assessment = { summary: result.text } }
-  const { createClient } = await import('@/lib/supabase/server')
-  const supabase = await createClient()
-  const { error: saveError } = await supabase.from('interview_sessions').insert({ access_code: parsed.data.accessCode, candidate_name: parsed.data.candidateName, role: parsed.data.role, transcript: parsed.data.transcript, assessment, status: 'completed' })
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const supabase = createAdminClient()
+  const { error: saveError } = await supabase.from('interview_sessions').update({ candidate_name: parsed.data.candidateName, candidate_email: parsed.data.candidateEmail, role: parsed.data.role, transcript: parsed.data.transcript, assessment, status: 'completed', completed_at: new Date().toISOString() }).eq('access_code', parsed.data.accessCode)
   if (saveError) return Response.json({ error: saveError.message }, { status: 500 })
+  const { data: existing } = await supabase.from('interview_sessions').select('id').eq('access_code', parsed.data.accessCode).maybeSingle()
+  if (!existing) { const { error: insertError } = await supabase.from('interview_sessions').insert({ access_code: parsed.data.accessCode, candidate_name: parsed.data.candidateName, candidate_email: parsed.data.candidateEmail, role: parsed.data.role, transcript: parsed.data.transcript, assessment, status: 'completed' }); if (insertError) return Response.json({ error: insertError.message }, { status: 500 }) }
   return Response.json({ ok: true, assessment })
 }
