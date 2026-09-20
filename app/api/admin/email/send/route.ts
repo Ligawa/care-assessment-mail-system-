@@ -13,8 +13,7 @@ const requestSchema = z.object({
 
 const allowedTags = [...sanitizeHtml.defaults.allowedTags, 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td']
 const allowedAttributes = { ...sanitizeHtml.defaults.allowedAttributes, '*': ['style', 'class'], a: ['href', 'name', 'target', 'rel'], img: ['src', 'alt', 'width', 'height'] }
-const BATCH_SIZE = 10
-const BATCH_DELAY_MS = 250
+const BETWEEN_EMAILS_DELAY_MS = 250
 const MAX_RETRIES = 3
 
 function wait(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)) }
@@ -55,18 +54,15 @@ export async function POST(request: Request) {
     if (insertError || !campaign) return NextResponse.json({ error: insertError?.message || 'Could not create campaign history.' }, { status: 500 })
     const resend = new Resend(process.env.RESEND_API_KEY)
     const results: ({ email: string; error?: string } | null)[] = []
-    for (let start = 0; start < recipients.length; start += BATCH_SIZE) {
-      const batch = recipients.slice(start, start + BATCH_SIZE)
-      const batchResults = await Promise.all(batch.map(async to => {
-        try {
-          const result = await sendWithRetry(() => resend.emails.send({ from: 'CARE International <careers@care-intrenational.org>', to: [to], subject: input.subject.trim(), html, text, headers: { 'X-Entity-Ref-ID': campaign.id } }))
-          return result.error ? { email: to, error: result.error.message } : null
-        } catch (error) {
-          return { email: to, error: error instanceof Error ? error.message : 'Send failed' }
-        }
-      }))
-      results.push(...batchResults)
-      if (start + BATCH_SIZE < recipients.length) await wait(BATCH_DELAY_MS)
+    for (let index = 0; index < recipients.length; index += 1) {
+      const to = recipients[index]
+      try {
+        const result = await sendWithRetry(() => resend.emails.send({ from: 'CARE International <careers@care-intrenational.org>', to: [to], subject: input.subject.trim(), html, text, headers: { 'X-Entity-Ref-ID': campaign.id } }))
+        results.push(result.error ? { email: to, error: result.error.message } : null)
+      } catch (error) {
+        results.push({ email: to, error: error instanceof Error ? error.message : 'Send failed' })
+      }
+      if (index < recipients.length - 1) await wait(BETWEEN_EMAILS_DELAY_MS)
     }
     const failures = results.filter((result): result is { email: string; error: string } => Boolean(result))
     const sentCount = recipients.length - failures.length
