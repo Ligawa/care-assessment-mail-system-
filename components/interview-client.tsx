@@ -25,14 +25,29 @@ export default function InterviewClient({ role, accessCode, voiceUri }: Props) {
   const recognition = useRef<Recognition | null>(null)
   const stream = useRef<MediaStream | null>(null)
   const video = useRef<HTMLVideoElement | null>(null)
+  const chosenVoice = useRef<SpeechSynthesisVoice | null>(null)
+
+  function pickVoice() {
+    const voices = window.speechSynthesis.getVoices()
+    if (!voices.length) return null
+    return voices.find(item => voiceUri && item.voiceURI === voiceUri) || voices.find(item => /Microsoft (Natasha|Jenny|Aria|Sonia)/i.test(item.name)) || voices.find(item => /Google UK English Female|Samantha|Karen|Moira|Zira/i.test(item.name)) || voices.find(item => /^en(-|_)/i.test(item.lang)) || voices[0]
+  }
+
+  useEffect(() => {
+    const load = () => { chosenVoice.current = pickVoice() }
+    load()
+    window.speechSynthesis.addEventListener('voiceschanged', load)
+    return () => window.speechSynthesis.removeEventListener('voiceschanged', load)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceUri])
 
   function speak(text: string) {
     window.speechSynthesis.cancel()
-    const voices = window.speechSynthesis.getVoices()
-    const voice = voices.find(item => voiceUri && item.voiceURI === voiceUri) || voices.find(item => /Microsoft (Jenny|Aria|Sonia)|Google UK English Female|Samantha|Karen|Moira|Zira/i.test(item.name)) || voices.find(item => /^en(-|_)/i.test(item.lang))
+    if (!chosenVoice.current) chosenVoice.current = pickVoice()
     const utterance = new SpeechSynthesisUtterance(text)
-    if (voice) utterance.voice = voice
-    utterance.lang = 'en-US'; utterance.rate = 0.9; utterance.pitch = 1.02
+    if (chosenVoice.current) { utterance.voice = chosenVoice.current; utterance.lang = chosenVoice.current.lang }
+    else utterance.lang = 'en-US'
+    utterance.rate = 0.9; utterance.pitch = 1.02
     utterance.onend = () => startListening()
     window.speechSynthesis.speak(utterance)
   }
@@ -69,8 +84,21 @@ export default function InterviewClient({ role, accessCode, voiceUri }: Props) {
   async function begin() {
     if (!name.trim()) return setError('Please enter your name before starting.')
     if (!email.trim() || !/^\S+@\S+\.\S+$/.test(email.trim())) return setError('Please enter a valid email address before starting.')
-    try { const media = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true }); stream.current = media; setStarted(true); requestAnimationFrame(() => { if (video.current) { video.current.srcObject = media; video.current.onloadeddata = () => setCameraReady(true); void video.current.play().catch(() => setError('Your camera opened, but the preview could not start. Please check browser camera permissions and reload.')) } }); void askEmmy([]) } catch { setError('Please allow camera and microphone access to join the interview.') }
+    try { const media = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true }); stream.current = media; setStarted(true); void askEmmy([]) } catch { setError('Please allow camera and microphone access to join the interview.') }
   }
+
+  useEffect(() => {
+    if (!started) return
+    const element = video.current
+    if (!element || !stream.current) return
+    element.srcObject = stream.current
+    const markReady = () => setCameraReady(true)
+    element.addEventListener('loadedmetadata', markReady)
+    element.addEventListener('playing', markReady)
+    void element.play().then(markReady).catch(() => {})
+    if (element.readyState >= 2) markReady()
+    return () => { element.removeEventListener('loadedmetadata', markReady); element.removeEventListener('playing', markReady) }
+  }, [started])
 
   useEffect(() => () => { recognition.current?.stop(); window.speechSynthesis.cancel(); stream.current?.getTracks().forEach(track => track.stop()) }, [])
 
