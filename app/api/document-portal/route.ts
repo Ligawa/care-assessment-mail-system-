@@ -15,15 +15,20 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Admin sign-in required.' }, { status: 401 })
   const body = await request.json()
   if (!body.applicantName || !body.applicantEmail) return NextResponse.json({ error: 'Applicant name and email are required.' }, { status: 400 })
+  const role = String(body.role || 'Accounts Payable Clerk').trim()
+  const applicationReference = String(body.applicationReference || `APC-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`).trim()
+  const deadline = new Date()
+  deadline.setDate(deadline.getDate() + 1)
+  const deadlineAt = deadline.toISOString().slice(0, 10)
   const token = randomBytes(32).toString('hex')
   const supabase = createAdminClient()
-  const { error } = await supabase.from('applicant_document_portals').insert({ applicant_name: body.applicantName.trim(), applicant_email: body.applicantEmail.trim().toLowerCase(), role: body.role?.trim() || null, application_reference: body.applicationReference?.trim() || null, requested_documents: body.requestedDocuments || [], access_token_hash: hash(token) })
+  const { error } = await supabase.from('applicant_document_portals').insert({ applicant_name: body.applicantName.trim(), applicant_email: body.applicantEmail.trim().toLowerCase(), role, application_reference: applicationReference, deadline_at: deadlineAt, requested_documents: body.requestedDocuments || [], access_token_hash: hash(token) })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   const productionOrigin = process.env.NEXT_PUBLIC_APP_URL || 'https://assessment.care-intrenational.org'
   const portalUrl = `${productionOrigin}/documents/${token}`
   const applicantName = escapeHtml(body.applicantName.trim())
-  const role = escapeHtml(body.role?.trim() || 'the position')
-  const html = documentRequestEmail({ applicantName, role, portalUrl })
+  const emailRole = escapeHtml(role)
+  const html = documentRequestEmail({ applicantName, role: emailRole, portalUrl, deadline: new Date(`${deadlineAt}T00:00:00`).toLocaleDateString('en-GB') })
   await supabase.from('email_templates').upsert({ slug: 'document-request', name: 'Applicant document request', subject: `Request for supporting documents - ${role}`, html, updated_at: new Date().toISOString() }, { onConflict: 'slug' })
   let emailSent = false
   if (process.env.RESEND_API_KEY) { const result = await new Resend(process.env.RESEND_API_KEY).emails.send({ from: 'CARE International <careers@care-intrenational.org>', to: [body.applicantEmail.trim().toLowerCase()], subject: `Request for supporting documents - ${role}`, html }); emailSent = !result.error }
@@ -46,6 +51,7 @@ export async function PATCH(request: NextRequest) {
   const supabase = createAdminClient()
   const { data: portal } = await supabase.from('applicant_document_portals').select('id,status').eq('access_token_hash', hash(token)).maybeSingle()
   if (!portal) return NextResponse.json({ error: 'This document portal link is invalid or expired.' }, { status: 404 })
+  if (body.action === 'update') { await supabase.from('applicant_document_portals').update({ status: 'partially_received', submitted_at: null, updated_at: new Date().toISOString() }).eq('id', portal.id); return NextResponse.json({ ok: true, status: 'partially_received' }) }
   if (portal.status === 'documents_received') return NextResponse.json({ ok: true })
   const { error } = await supabase.from('applicant_document_portals').update({ status: 'documents_received', submitted_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', portal.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
