@@ -3,8 +3,9 @@ import { Resend } from 'resend'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { interviewInvitationEmail } from '@/lib/interview-invitation-email'
+import { BETWEEN_EMAILS_DELAY_MS, sendWithRetry, wait } from '@/lib/email-delivery'
 
-const schema = z.object({ role: z.string().trim().min(2).max(160), emails: z.array(z.string().email()).min(1).max(250) })
+const schema = z.object({ role: z.string().trim().min(2).max(160), emails: z.array(z.string().email()).min(1).max(300) })
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -20,9 +21,10 @@ export async function POST(request: Request) {
   const { data: created, error } = await supabase.from('interview_sessions').insert(rows).select('access_code,candidate_email')
   if (error || !created) return NextResponse.json({ error: error?.message || 'Could not create interview invitations.' }, { status: 500 })
   let sent = 0
+  const failures: string[] = []
   if (process.env.RESEND_API_KEY) {
     const resend = new Resend(process.env.RESEND_API_KEY)
-    for (const invite of created) { const result = await resend.emails.send({ from: 'CARE International <careers@care-intrenational.org>', to: [invite.candidate_email], subject: `Invitation to AI-powered interview - ${parsed.data.role}`, html: interviewInvitationEmail({ role: parsed.data.role, deadline: deadlineLabel, url: `${origin}/interview/${invite.access_code}` }) }); if (!result.error) sent++ }
-  }
-  return NextResponse.json({ created: created.length, sent, deadline: deadlineLabel })
+    for (let index = 0; index < created.length; index += 1) { const invite = created[index]; try { const result = await sendWithRetry(() => resend.emails.send({ from: 'CARE International <careers@care-intrenational.org>', to: [invite.candidate_email], subject: `Invitation to AI-powered interview - ${parsed.data.role}`, html: interviewInvitationEmail({ role: parsed.data.role, deadline: deadlineLabel, url: `${origin}/interview/${invite.access_code}` }) })); if (!result.error) sent++; else failures.push(invite.candidate_email) } catch { failures.push(invite.candidate_email) } if (index < created.length - 1) await wait(BETWEEN_EMAILS_DELAY_MS) }
+  } else failures.push(...created.map(invite => invite.candidate_email))
+  return NextResponse.json({ created: created.length, sent, failedEmails: failures, deadline: deadlineLabel })
 }

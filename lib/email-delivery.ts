@@ -1,0 +1,5 @@
+export const BETWEEN_EMAILS_DELAY_MS = 350
+const MAX_RETRIES = 3
+export function wait(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)) }
+function isTransientError(error: unknown) { const candidate = error as { statusCode?: number; status?: number; message?: string }; const status = candidate?.statusCode ?? candidate?.status; return status === undefined || status === 408 || status === 425 || status === 429 || status >= 500 || /timeout|temporar|rate.?limit|network|fetch/i.test(candidate?.message || '') }
+export async function sendWithRetry<T extends { error?: { message: string } | null }>(send: () => Promise<T>) { let lastError: unknown; for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) { try { const result = await send(); if (!result.error || !isTransientError(result.error)) return result; lastError = result.error } catch (error) { lastError = error; if (!isTransientError(error)) throw error } if (attempt < MAX_RETRIES) await wait(500 * 2 ** attempt) } throw lastError instanceof Error ? lastError : new Error('Email delivery failed after retries.') }

@@ -5,9 +5,10 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createHash, randomBytes } from 'node:crypto'
+import { BETWEEN_EMAILS_DELAY_MS, sendWithRetry, wait } from '@/lib/email-delivery'
 
 const requestSchema = z.object({
-  recipients: z.array(z.string().trim().email()).min(1).max(100),
+  recipients: z.array(z.string().trim().email()).min(1).max(300),
   subject: z.string().trim().min(1).max(200),
   html: z.string().min(1).max(1_000_000),
   text: z.string().max(200_000).optional(),
@@ -15,31 +16,6 @@ const requestSchema = z.object({
 
 const allowedTags = [...sanitizeHtml.defaults.allowedTags, 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td']
 const allowedAttributes = { ...sanitizeHtml.defaults.allowedAttributes, '*': ['style', 'class'], a: ['href', 'name', 'target', 'rel'], img: ['src', 'alt', 'width', 'height'] }
-const BETWEEN_EMAILS_DELAY_MS = 250
-const MAX_RETRIES = 3
-
-function wait(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)) }
-function isTransientError(error: unknown) {
-  const candidate = error as { statusCode?: number; status?: number; message?: string }
-  const status = candidate?.statusCode ?? candidate?.status
-  return status === undefined || status === 408 || status === 425 || status === 429 || status >= 500 || /timeout|temporar|rate.?limit|network|fetch/i.test(candidate?.message || '')
-}
-
-async function sendWithRetry(send: () => Promise<{ error?: { message: string } | null }>) {
-  let lastError: unknown
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
-    try {
-      const result = await send()
-      if (!result.error || !isTransientError(result.error)) return result
-      lastError = result.error
-    } catch (error) {
-      lastError = error
-      if (!isTransientError(error)) throw error
-    }
-    if (attempt < MAX_RETRIES) await wait(400 * 2 ** attempt)
-  }
-  throw lastError instanceof Error ? lastError : new Error('Email delivery failed after retries.')
-}
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -49,7 +25,7 @@ export async function POST(request: Request) {
   try {
     const input = requestSchema.parse(await request.json())
     const recipients = [...new Set(input.recipients.map(email => email.trim().toLowerCase()))]
-    if (recipients.length > 100) return NextResponse.json({ error: 'You can send to a maximum of 100 recipients.' }, { status: 400 })
+    if (recipients.length > 300) return NextResponse.json({ error: 'You can send to a maximum of 300 recipients.' }, { status: 400 })
     const html = sanitizeHtml(input.html.trimEnd(), { allowedTags, allowedAttributes, allowedSchemes: ['http', 'https', 'mailto'] }).trimEnd()
     const text = input.text?.trim() || sanitizeHtml(html, { allowedTags: [], allowedAttributes: {} }).replace(/\s+/g, ' ').trim()
     const { data: campaign, error: insertError } = await supabase.from('email_campaigns').insert({ subject: input.subject.trim(), html_body: html, text_body: text, recipients, recipient_count: recipients.length, status: 'sending', created_by: user.id }).select('id').single()
