@@ -59,6 +59,7 @@ export default function InterviewClient({ role, accessCode, voiceUri }: Props) {
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'The interview could not continue.')
       setTranscript(current => [...current, { speaker: 'Emmy Nana', text: data.text }])
+      if (data.completed) { setDone(true); recognition.current?.stop(); window.speechSynthesis.cancel(); await fetch('/api/interview/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accessCode, role, candidateName: name, candidateEmail: email, transcript: [...next, { speaker: 'Emmy Nana', text: data.text }] }) }); stream.current?.getTracks().forEach(track => track.stop()); return }
       speak(data.text)
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'The interview could not continue.') } finally { setBusy(false) }
   }
