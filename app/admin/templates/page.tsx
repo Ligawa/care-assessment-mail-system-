@@ -1,0 +1,8 @@
+import AdminSidebar from '@/components/admin-sidebar'
+import { createClient } from '@/lib/supabase/server'
+
+export default async function TemplatesPage() {
+  const supabase = await createClient()
+  const { data: templates } = await supabase.from('email_templates').select('name,slug,subject,html,updated_at').order('name')
+  return <div className="min-h-screen bg-[#f7f8f6] lg:flex"><AdminSidebar /><main className="flex-1 p-6"><div className="mx-auto max-w-6xl"><p className="text-sm font-bold uppercase tracking-[0.18em] text-[#f47700]">Hiring operations</p><h1 className="mt-2 text-4xl font-semibold text-[#101b30]">Email templates</h1><p className="mt-2 text-[#455c7d]">Reusable recruitment emails are saved here automatically when they are used.</p><section className="mt-8 grid gap-5">{templates?.map(template => <article key={template.slug} className="rounded-3xl border border-[#ded8ca] bg-white p-6"><div className="flex items-start justify-between gap-4"><div><h2 className="text-xl font-semibold text-[#101b30]">{template.name}</h2><p className="mt-1 text-sm text-[#455c7d]">Subject: {template.subject}</p></div><span className="rounded-full bg-[#e8f3ed] px-3 py-1 text-xs font-semibold text-[#28704d]">Saved template</span></div><details className="mt-5"><summary className="cursor-pointer font-semibold text-[#f47700]">View HTML source</summary><pre className="mt-3 max-h-96 overflow-auto rounded-xl bg-[#101b30] p-4 text-xs text-white">{template.html}</pre></details></article>)}{!templates?.length && <p className="rounded-3xl bg-white p-8 text-[#455c7d]">The document-request template will appear here after the first portal is created.</p>}</section></div></main></div>
+}
