@@ -16,7 +16,7 @@ export default async function AdminPage() {
     supabase.from('email_campaigns').select('id,subject,html_body,text_body,recipients,recipient_count,sent_count,failed_count,status,error_details,created_at').order('created_at', { ascending:false }).limit(20),
     supabase.from('email_templates').select('id,slug,name,subject,html').order('name')
   ])
-  const defaultDocumentTemplate = documentRequestEmail({ applicantName: '{{applicant_name}}', role: '{{role}}', portalUrl: '{{portal_url}}' })
+  const defaultDocumentTemplate = documentRequestEmail({ applicantName: 'Applicant', role: 'Accounts Payable Clerk', portalUrl: '{{portal_url}}', deadline: '{{deadline}}' })
   const savedTemplates = templates?.length ? templates.map(template => template.slug === 'document-request' ? { ...template, html: defaultDocumentTemplate } : template) : [{ id: 'document-request-default', slug: 'document-request', name: 'Applicant document request', subject: 'Request for supporting documents', html: defaultDocumentTemplate }]
   return <AdminDashboard departments={departments ?? []} positions={positions ?? []} assessments={assessments ?? []} submissions={submissions ?? []} campaigns={campaigns ?? []} templates={savedTemplates} email={user.email} />
 }
