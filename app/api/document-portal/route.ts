@@ -39,6 +39,19 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ portal: data })
 }
 
+export async function PATCH(request: NextRequest) {
+  const body = await request.json()
+  const token = String(body.token || '')
+  if (!token) return NextResponse.json({ error: 'Missing portal token.' }, { status: 400 })
+  const supabase = createAdminClient()
+  const { data: portal } = await supabase.from('applicant_document_portals').select('id,status').eq('access_token_hash', hash(token)).maybeSingle()
+  if (!portal) return NextResponse.json({ error: 'This document portal link is invalid or expired.' }, { status: 404 })
+  if (portal.status === 'documents_received') return NextResponse.json({ ok: true })
+  const { error } = await supabase.from('applicant_document_portals').update({ status: 'documents_received', submitted_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', portal.id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
+
 export async function PUT(request: NextRequest) {
   const form = await request.formData()
   const token = String(form.get('token') || '')
