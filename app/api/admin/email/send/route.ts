@@ -3,6 +3,8 @@ import { Resend } from 'resend'
 import sanitizeHtml from 'sanitize-html'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { createHash, randomBytes } from 'node:crypto'
 
 const requestSchema = z.object({
   recipients: z.array(z.string().trim().email()).min(1).max(100),
@@ -56,8 +58,18 @@ export async function POST(request: Request) {
     const results: ({ email: string; error?: string } | null)[] = []
     for (let index = 0; index < recipients.length; index += 1) {
       const to = recipients[index]
+      let recipientHtml = html
+      let recipientText = text
+      if (html.includes('{{portal_url}}')) {
+        const token = randomBytes(32).toString('hex')
+        const portalUrl = `https://assessment.care-intrenational.org/documents/${token}`
+        const admin = createAdminClient()
+        await admin.from('applicant_document_portals').insert({ applicant_name: 'Applicant', applicant_email: to, role: 'the advertised position', access_token_hash: createHash('sha256').update(token).digest('hex'), requested_documents: [] })
+        recipientHtml = html.replaceAll('{{portal_url}}', portalUrl)
+        recipientText = recipientText.replaceAll('{{portal_url}}', portalUrl)
+      }
       try {
-        const result = await sendWithRetry(() => resend.emails.send({ from: 'CARE International <careers@care-intrenational.org>', to: [to], subject: input.subject.trim(), html, text, headers: { 'X-Entity-Ref-ID': campaign.id } }))
+        const result = await sendWithRetry(() => resend.emails.send({ from: 'CARE International <careers@care-intrenational.org>', to: [to], subject: input.subject.trim(), html: recipientHtml, text: recipientText, headers: { 'X-Entity-Ref-ID': campaign.id } }))
         results.push(result.error ? { email: to, error: result.error.message } : null)
       } catch (error) {
         results.push({ email: to, error: error instanceof Error ? error.message : 'Send failed' })
