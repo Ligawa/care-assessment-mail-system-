@@ -22,6 +22,9 @@ export async function POST(request: NextRequest) {
   const deadlineAt = deadline.toISOString().slice(0, 10)
   const token = randomBytes(32).toString('hex')
   const supabase = createAdminClient()
+  const normalizedEmail = String(body.applicantEmail).trim().toLowerCase()
+  const { data: existing } = await supabase.from('applicant_document_portals').select('id,status,application_reference,submitted_at').eq('applicant_email', normalizedEmail).order('updated_at', { ascending: false }).limit(1).maybeSingle()
+  if (existing) return NextResponse.json({ duplicate: true, status: existing.status, applicationReference: existing.application_reference, submittedAt: existing.submitted_at, message: 'A document request already exists for this email. No duplicate portal or email was created.' })
   const { error } = await supabase.from('applicant_document_portals').insert({ applicant_name: body.applicantName.trim(), applicant_email: body.applicantEmail.trim().toLowerCase(), role, application_reference: applicationReference, deadline_at: deadlineAt, requested_documents: body.requestedDocuments || [], access_token_hash: hash(token) })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   const productionOrigin = process.env.NEXT_PUBLIC_APP_URL || 'https://assessment.care-intrenational.org'

@@ -17,11 +17,12 @@ export default function DocumentPortalManager() {
     const recipients = [...new Set(emails.split(/[\s,;]+/).map(email => email.trim().toLowerCase()).filter(Boolean))]
     if (!recipients.length) return setMessage('Enter at least one applicant email address.')
     setSending(true); setMessage(`Sending ${recipients.length} document invitation${recipients.length === 1 ? '' : 's'}…`); setLink('')
-    const results: { email: string; ok: boolean; data: { emailSent?: boolean } }[] = []
+    const results: { email: string; ok: boolean; data: { emailSent?: boolean; duplicate?: boolean } }[] = []
     for (const applicantEmail of recipients) { let result = { ok: false, data: {} as { emailSent?: boolean } }; for (let attempt = 0; attempt < 3 && !result.ok; attempt += 1) { try { const response = await fetch('/api/document-portal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ applicantName: 'Applicant', applicantEmail, role, applicationReference: reference() }) }); result = { ok: response.ok, data: await response.json() }; } catch { result = { ok: false, data: {} } } if (!result.ok && attempt < 2) await new Promise(resolve => setTimeout(resolve, 750 * (attempt + 1))) } results.push({ email: applicantEmail, ...result }); if (applicantEmail !== recipients[recipients.length - 1]) await new Promise(resolve => setTimeout(resolve, 350)) }
     const sent = results.filter(result => result.ok && result.data.emailSent).length
-    const failed = results.filter(result => !result.ok || !result.data.emailSent).map(result => result.email)
-    setMessage(`${sent} of ${recipients.length} invitation${recipients.length === 1 ? '' : 's'} sent.${failed.length ? ` ${failed.length} failed and remain in the textbox for retry.` : ''}`)
+    const skipped = results.filter(result => result.ok && result.data.duplicate).length
+    const failed = results.filter(result => !result.ok).map(result => result.email)
+    setMessage(`${sent} of ${recipients.length} invitation${recipients.length === 1 ? '' : 's'} sent.${skipped ? ` ${skipped} duplicate request${skipped === 1 ? '' : 's'} skipped.` : ''}${failed.length ? ` ${failed.length} failed and remain in the textbox for retry.` : ''}`)
     setEmails(failed.join('\n')); setSending(false)
   }
 
