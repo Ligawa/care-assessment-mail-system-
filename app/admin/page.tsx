@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import AdminDashboard from '@/components/admin-dashboard'
+import { documentRequestEmail } from '@/lib/document-request-email'
 
 export default async function AdminPage() {
   const supabase = await createClient()
@@ -15,6 +16,7 @@ export default async function AdminPage() {
     supabase.from('email_campaigns').select('id,subject,html_body,text_body,recipients,recipient_count,sent_count,failed_count,status,error_details,created_at').order('created_at', { ascending:false }).limit(20),
     supabase.from('email_templates').select('id,slug,name,subject,html').order('name')
   ])
-  const savedTemplates = templates?.length ? templates : [{ id: 'document-request-default', slug: 'document-request', name: 'Applicant document request', subject: 'Request for supporting documents', html: '<p>Dear {{applicant_name}},</p><p>Please use the secure link below to upload the supporting documents requested for your application.</p><p><a href="{{portal_url}}">Upload documents securely</a></p><p>Kind regards,<br>CARE International Recruitment Team</p>' }]
+  const defaultDocumentTemplate = documentRequestEmail({ applicantName: '{{applicant_name}}', role: '{{role}}', portalUrl: '{{portal_url}}' })
+  const savedTemplates = templates?.length ? templates.map(template => template.slug === 'document-request' ? { ...template, html: defaultDocumentTemplate } : template) : [{ id: 'document-request-default', slug: 'document-request', name: 'Applicant document request', subject: 'Request for supporting documents', html: defaultDocumentTemplate }]
   return <AdminDashboard departments={departments ?? []} positions={positions ?? []} assessments={assessments ?? []} submissions={submissions ?? []} campaigns={campaigns ?? []} templates={savedTemplates} email={user.email} />
 }
