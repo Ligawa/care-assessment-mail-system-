@@ -15,5 +15,6 @@ export default async function AdminPage() {
     supabase.from('email_campaigns').select('id,subject,html_body,text_body,recipients,recipient_count,sent_count,failed_count,status,error_details,created_at').order('created_at', { ascending:false }).limit(20),
     supabase.from('email_templates').select('id,slug,name,subject,html').order('name')
   ])
-  return <AdminDashboard departments={departments ?? []} positions={positions ?? []} assessments={assessments ?? []} submissions={submissions ?? []} campaigns={campaigns ?? []} templates={templates ?? []} email={user.email} />
+  const savedTemplates = templates?.length ? templates : [{ id: 'document-request-default', slug: 'document-request', name: 'Applicant document request', subject: 'Request for supporting documents', html: '<p>Dear {{applicant_name}},</p><p>Please use the secure link below to upload the supporting documents requested for your application.</p><p><a href="{{portal_url}}">Upload documents securely</a></p><p>Kind regards,<br>CARE International Recruitment Team</p>' }]
+  return <AdminDashboard departments={departments ?? []} positions={positions ?? []} assessments={assessments ?? []} submissions={submissions ?? []} campaigns={campaigns ?? []} templates={savedTemplates} email={user.email} />
 }
