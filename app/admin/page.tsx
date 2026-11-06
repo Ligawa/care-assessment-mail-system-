@@ -11,6 +11,9 @@ export default async function AdminPage() {
   const { data: assessments } = await supabase.from('assessment_roles').select('*').order('created_at', { ascending:false })
   const { data: submissions, error: submissionsError } = await supabase.from('assessment_submissions').select('id,reference_number,full_name,email,submitted_at,assessment_id,answers,decision_status,decision_at,notification_status,notification_error').order('created_at', { ascending:false }).limit(100)
   if (submissionsError) console.error('[v0] Candidate query failed:', submissionsError.message)
-  const { data: campaigns } = await supabase.from('email_campaigns').select('id,subject,html_body,text_body,recipients,recipient_count,sent_count,failed_count,status,error_details,created_at').order('created_at', { ascending:false }).limit(20)
-  return <AdminDashboard departments={departments ?? []} positions={positions ?? []} assessments={assessments ?? []} submissions={submissions ?? []} campaigns={campaigns ?? []} email={user.email} />
+  const [{ data: campaigns }, { data: templates }] = await Promise.all([
+    supabase.from('email_campaigns').select('id,subject,html_body,text_body,recipients,recipient_count,sent_count,failed_count,status,error_details,created_at').order('created_at', { ascending:false }).limit(20),
+    supabase.from('email_templates').select('id,slug,name,subject,html').order('name')
+  ])
+  return <AdminDashboard departments={departments ?? []} positions={positions ?? []} assessments={assessments ?? []} submissions={submissions ?? []} campaigns={campaigns ?? []} templates={templates ?? []} email={user.email} />
 }
