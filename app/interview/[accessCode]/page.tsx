@@ -1,10 +1,10 @@
 import { notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import InterviewClient from '@/components/interview-client'
 
 export default async function InterviewPage({ params }: { params: Promise<{ accessCode: string }> }) {
   const { accessCode } = await params
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data: assessment } = await supabase.from('assessment_roles').select('title,access_code,status').eq('access_code', accessCode.toUpperCase()).eq('status', 'published').maybeSingle()
   const { data: interview } = await supabase.from('interview_sessions').select('role,access_code,status').eq('access_code', accessCode.toUpperCase()).maybeSingle()
   const role = assessment?.title || interview?.role
