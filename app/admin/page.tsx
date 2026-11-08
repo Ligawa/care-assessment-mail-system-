@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import AdminDashboard from '@/components/admin-dashboard'
 import { documentRequestEmail } from '@/lib/document-request-email'
+import { buildPipelineStats } from '@/lib/pipeline-stats'
 
 export default async function AdminPage() {
   const supabase = await createClient()
@@ -16,7 +17,13 @@ export default async function AdminPage() {
     supabase.from('email_campaigns').select('id,subject,html_body,text_body,recipients,recipient_count,sent_count,failed_count,status,error_details,created_at').order('created_at', { ascending:false }).limit(20),
     supabase.from('email_templates').select('id,slug,name,subject,html').order('name')
   ])
+  const [{ data: portalRows }, { data: interviewRows }, { data: candidateRows }] = await Promise.all([
+    supabase.from('applicant_document_portals').select('id,applicant_name,applicant_email,status,deadline_at,submitted_at').limit(5000),
+    supabase.from('interview_sessions').select('id,candidate_email,status,decision_status,deadline_at').limit(5000),
+    supabase.from('assessment_submissions').select('id,decision_status,offer_status,submitted_at').not('submitted_at', 'is', null).limit(5000)
+  ])
+  const pipeline = buildPipelineStats(portalRows ?? [], interviewRows ?? [], candidateRows ?? [])
   const defaultDocumentTemplate = documentRequestEmail({ applicantName: 'Applicant', role: 'Accounts Payable Clerk', portalUrl: '{{portal_url}}', deadline: '{{deadline}}' })
   const savedTemplates = templates?.length ? templates.map(template => template.slug === 'document-request' ? { ...template, html: defaultDocumentTemplate } : template) : [{ id: 'document-request-default', slug: 'document-request', name: 'Applicant document request', subject: 'Request for supporting documents', html: defaultDocumentTemplate }]
-  return <AdminDashboard departments={departments ?? []} positions={positions ?? []} assessments={assessments ?? []} submissions={submissions ?? []} campaigns={campaigns ?? []} templates={savedTemplates} email={user.email} />
+  return <AdminDashboard departments={departments ?? []} positions={positions ?? []} assessments={assessments ?? []} submissions={submissions ?? []} campaigns={campaigns ?? []} templates={savedTemplates} pipeline={pipeline} email={user.email} />
 }
