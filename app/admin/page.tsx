@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import AdminDashboard from '@/components/admin-dashboard'
 import { documentRequestEmail } from '@/lib/document-request-email'
 import { buildPipelineStats } from '@/lib/pipeline-stats'
+import { loadAssessmentInviteData } from '@/lib/assessment-invite-data'
 
 export default async function AdminPage() {
   const supabase = await createClient()
@@ -23,7 +24,8 @@ export default async function AdminPage() {
     supabase.from('assessment_submissions').select('id,decision_status,offer_status,submitted_at').not('submitted_at', 'is', null).limit(5000)
   ])
   const pipeline = buildPipelineStats(portalRows ?? [], interviewRows ?? [], candidateRows ?? [])
+  const assessmentInvites = await loadAssessmentInviteData()
   const defaultDocumentTemplate = documentRequestEmail({ applicantName: 'Applicant', role: 'Accounts Payable Clerk', portalUrl: '{{portal_url}}', deadline: '{{deadline}}' })
   const savedTemplates = templates?.length ? templates.map(template => template.slug === 'document-request' ? { ...template, html: defaultDocumentTemplate } : template) : [{ id: 'document-request-default', slug: 'document-request', name: 'Applicant document request', subject: 'Request for supporting documents', html: defaultDocumentTemplate }]
-  return <AdminDashboard departments={departments ?? []} positions={positions ?? []} assessments={assessments ?? []} submissions={submissions ?? []} campaigns={campaigns ?? []} templates={savedTemplates} pipeline={pipeline} email={user.email} />
+  return <AdminDashboard departments={departments ?? []} positions={positions ?? []} assessments={assessments ?? []} submissions={submissions ?? []} campaigns={campaigns ?? []} templates={savedTemplates} pipeline={pipeline} assessmentInvites={assessmentInvites} generatedAt={Date.now()} email={user.email} />
 }
