@@ -60,7 +60,7 @@ export default function InterviewClient({ role, accessCode, voiceUri }: Props) {
   async function askEmmy(next: Utterance[]) {
     setBusy(true); setError('')
     try {
-      const response = await fetch('/api/interview/respond', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role, candidateName: name, transcript: next }) })
+      const response = await fetch('/api/interview/respond', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role, candidateName: name, accessCode, transcript: next }) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'The interview could not continue.')
       setTranscript(current => [...current, { speaker: 'Emmy Nana', text: data.text }])
