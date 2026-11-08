@@ -1,17 +1,23 @@
 import { generateText } from 'ai'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { z } from 'zod'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 const inputSchema = z.object({
   role: z.string().min(1),
   candidateName: z.string().min(1),
+  accessCode: z.string().optional(),
   transcript: z.array(z.object({ speaker: z.enum(['Emmy Nana', 'Candidate']), text: z.string().min(1) })).max(30),
 })
 
 export async function POST(request: Request) {
   const parsed = inputSchema.safeParse(await request.json())
   if (!parsed.success) return Response.json({ error: 'Invalid interview request.' }, { status: 400 })
-  const { role, candidateName, transcript } = parsed.data
+  const { role, candidateName, transcript, accessCode } = parsed.data
+  if (accessCode) {
+    const { error: startError } = await createAdminClient().from('interview_sessions').update({ started_at: new Date().toISOString() }).eq('access_code', accessCode.toUpperCase()).is('started_at', null)
+    if (startError) console.error('[v0] Could not record interview start:', startError.message)
+  }
   if (!process.env.GEMINI_API_KEY) return Response.json({ error: 'Gemini API key is not configured.' }, { status: 500 })
   const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY })
   const result = await generateText({
