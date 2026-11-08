@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import TestEmailButton from '@/components/test-email-button'
 
 type Candidate = { id: string; name: string; email: string; role: string; status: string }
 type Counts = { requested: number; partial: number; received: number; interviewed: number }
@@ -35,6 +36,7 @@ export default function InterviewInvitePanel({ candidates, counts }: { candidate
       <div><h2 className="text-xl font-semibold text-[#101b30]">Invite to AI-powered interview</h2><p className="mt-1 max-w-2xl text-sm text-[#455c7d]">Applicants who have submitted documents, fully or partially, and have not yet been invited. Each receives a detailed email with their own interview link, due the next day.</p></div>
       <button type="button" onClick={send} disabled={sending || !selected.length} className="shrink-0 rounded-xl bg-[#f47700] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{sending ? 'Sending invitations…' : `Send interview invites (${selected.length})`}</button>
     </div>
+    <div className="mt-4"><TestEmailButton type="interview" role={candidates[0]?.role || 'Accounts Payable Clerk'} /></div>
     {candidates.length > 0 ? <>
       <div className="mt-4 flex gap-4 text-sm font-semibold text-[#f47700]"><button type="button" onClick={() => setSelected(candidates.map(candidate => candidate.id))}>Select all</button><button type="button" onClick={() => setSelected([])}>Clear</button></div>
       <ul className="mt-3 grid max-h-72 gap-2 overflow-y-auto">{candidates.map(candidate => <li key={candidate.id}><label className="flex cursor-pointer items-center gap-3 rounded-xl bg-[#f7f8f6] px-4 py-3 text-sm"><input type="checkbox" checked={selected.includes(candidate.id)} onChange={() => toggle(candidate.id)} className="size-4 accent-[#f47700]" /><span className="min-w-0 flex-1"><span className="block truncate font-semibold text-[#101b30]">{candidate.name}</span><span className="block truncate text-[#455c7d]">{candidate.email} · {candidate.role}</span></span><span className="rounded-full bg-[#e8f3ed] px-3 py-1 text-xs font-semibold text-[#28704d]">{candidate.status.replaceAll('_', ' ')}</span></label></li>)}</ul>
