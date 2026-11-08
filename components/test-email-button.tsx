@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 
-type Props = { type: 'document' | 'interview'; role: string }
+type Props = { type: 'document' | 'interview' | 'assessment'; role: string }
 
 export default function TestEmailButton({ type, role }: Props) {
   const [to, setTo] = useState('')

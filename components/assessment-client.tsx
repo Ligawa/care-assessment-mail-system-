@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Check, Clock3, Copy } from 'lucide-react'
 
-type Props = { assessment: any; questions: any[] }
+type Props = { assessment: any; questions: any[]; invite?: { token: string; name: string; email: string } }
 
-export default function AssessmentClient({ assessment, questions }: Props) {
+export default function AssessmentClient({ assessment, questions, invite }: Props) {
   const [step, setStep] = useState<'profile' | 'test' | 'done'>('profile')
-  const [profile, setProfile] = useState({ name: '', email: '', location: '', experience: '', deployment: 'yes', availability: 'Within 1 month', salary: '' })
+  const [profile, setProfile] = useState({ name: invite?.name ?? '', email: invite?.email ?? '', location: '', experience: '', deployment: 'yes', availability: 'Within 1 month', salary: '' })
   const [photo, setPhoto] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState('')
   const [answers, setAnswers] = useState<Record<string, string>>({})
@@ -52,7 +52,7 @@ export default function AssessmentClient({ assessment, questions }: Props) {
     try {
       let photoPathname = null
       if (photo) { const form = new FormData(); form.append('file', photo); const upload = await fetch('/api/candidate/photo', { method: 'POST', body: form }); const data = await upload.json(); if (!upload.ok) throw new Error(data.error); photoPathname = data.pathname }
-      const response = await fetch('/api/assessments/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assessmentId: assessment.id, fullName: profile.name, email: profile.email, currentLocation: profile.location, yearsExperience: profile.experience, photoPathname, availableForDeployment: profile.deployment === 'yes', deploymentAvailability: profile.availability, salaryExpectation: profile.salary, answers }) })
+      const response = await fetch('/api/assessments/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assessmentId: assessment.id, inviteToken: invite?.token, fullName: profile.name, email: profile.email, currentLocation: profile.location, yearsExperience: profile.experience, photoPathname, availableForDeployment: profile.deployment === 'yes', deploymentAvailability: profile.availability, salaryExpectation: profile.salary, answers }) })
       const data = await response.json(); if (!response.ok) throw new Error(data.error); window.sessionStorage.removeItem(timerKey); window.sessionStorage.removeItem(profileKey); setReference(data.referenceNumber); setStep('done')
     } catch (submissionError: any) { setError(submissionError.message || 'Submission failed.') } finally { setBusy(false) }
   }
