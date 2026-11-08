@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
-import { Resend } from 'resend'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { sendAssessmentInvites } from '@/lib/assessment-invites'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient()
@@ -11,16 +12,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { id } = await params
   const parsed = z.object({ assessmentId: z.string().uuid() }).safeParse(await request.json())
   if (!parsed.success) return NextResponse.json({ error: 'Choose an assessment.' }, { status: 400 })
+  const admin = createAdminClient()
   const [{ data: interview }, { data: assessment }] = await Promise.all([
-    supabase.from('interview_sessions').select('candidate_name,candidate_email,role').eq('id', id).maybeSingle(),
-    supabase.from('assessment_roles').select('title,access_code').eq('id', parsed.data.assessmentId).maybeSingle(),
+    admin.from('interview_sessions').select('id,candidate_name,candidate_email,role,status,decision_status').eq('id', id).maybeSingle(),
+    admin.from('assessment_roles').select('id,title,access_code,duration_minutes,question_count,status').eq('id', parsed.data.assessmentId).maybeSingle(),
   ])
   if (!interview?.candidate_email) return NextResponse.json({ error: 'This interview has no applicant email.' }, { status: 400 })
+  if (interview.status !== 'completed' || interview.decision_status !== 'passed') return NextResponse.json({ error: 'Mark the interview as passed before inviting the applicant to the assessment.' }, { status: 400 })
   if (!assessment) return NextResponse.json({ error: 'Assessment not found.' }, { status: 404 })
-  const origin = new URL(request.url).origin
-  const link = `${origin}/assessment/${assessment.access_code}`
-  const resend = new Resend(process.env.RESEND_API_KEY)
-  const result = await resend.emails.send({ from: 'CARE International <careers@care-intrenational.org>', to: [interview.candidate_email], subject: `Skills assessment for ${interview.role}`, text: `Hello ${interview.candidate_name || 'there'},\n\nPlease complete the ${assessment.title} skills assessment for the ${interview.role} position:\n${link}\n\nCARE International Recruitment Team` })
-  if (result.error) return NextResponse.json({ error: result.error.message }, { status: 502 })
+  if (assessment.status !== 'published') return NextResponse.json({ error: 'Publish this assessment before inviting applicants.' }, { status: 400 })
+  const result = await sendAssessmentInvites(admin, assessment, [interview])
+  if (result.skippedDuplicates.length) return NextResponse.json({ error: 'This applicant has already been invited to an assessment for this role.' }, { status: 409 })
+  if (result.failedEmails.length) return NextResponse.json({ error: 'The invitation email could not be sent. Please try again.' }, { status: 502 })
   return NextResponse.json({ ok: true })
 }

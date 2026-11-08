@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 
-type Props = { type: 'document' | 'interview'; role: string }
+type Props = { type: 'document' | 'interview' | 'assessment'; role: string; assessmentId?: string }
 
-export default function TestEmailButton({ type, role }: Props) {
+export default function TestEmailButton({ type, role, assessmentId }: Props) {
   const [to, setTo] = useState('')
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null)
@@ -12,7 +12,7 @@ export default function TestEmailButton({ type, role }: Props) {
   async function sendTest() {
     setBusy(true); setStatus(null)
     try {
-      const response = await fetch('/api/admin/email/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, role, to }) })
+      const response = await fetch('/api/admin/email/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, role, to, assessmentId }) })
       const data = await response.json().catch(() => ({}))
       setStatus(response.ok
         ? { ok: true, text: `Test email sent to ${data.sentTo}. The button inside it is a sample link and will not open a real portal.` }

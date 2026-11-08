@@ -21,6 +21,8 @@ export async function POST(request: Request) {
   const hrReference = `CARE-${new Date().getUTCFullYear()}-${candidateIdFragment(input.submissionId)}`
   const { data: candidate } = await supabase.from('assessment_submissions').select('id,full_name,email,decision_status,offer_status,offer_request_key').eq('id', input.submissionId).maybeSingle()
   if (!candidate) return NextResponse.json({ error: 'Candidate not found.' }, { status: 404 }); if (candidate.decision_status !== 'passed') return NextResponse.json({ error: 'Offers can only be issued to passed candidates.' }, { status: 400 })
+  const { data: completedInvite } = await supabase.from('assessment_invites').select('id').eq('submission_id', candidate.id).eq('status', 'completed').maybeSingle()
+  if (!completedInvite) return NextResponse.json({ error: 'Offers can only be issued to applicants who completed their invited skills assessment.' }, { status: 400 })
   const requestKey = `${candidate.id}:${input.startDate}:${hrReference}:${input.acceptanceDeadline}`; if (candidate.offer_status === 'sent' && candidate.offer_request_key === requestKey) return NextResponse.json({ message: 'Offer already sent.' })
   const { error: saving } = await supabase.from('assessment_submissions').update({ offer_status: 'generating', offer_error: null, offer_request_key: requestKey, offer_start_date: input.startDate, offer_duty_station: input.dutyStation, offer_department: input.department, offer_contract_type: input.contractType, offer_hr_reference: hrReference, offer_document_deadline: input.documentDeadline }).eq('id', candidate.id)
   if (saving) return NextResponse.json({ error: saving.message }, { status: 500 })

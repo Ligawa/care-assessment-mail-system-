@@ -2,13 +2,16 @@ import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { documentRequestEmail } from '@/lib/document-request-email'
 import { interviewInvitationEmail } from '@/lib/interview-invitation-email'
+import { assessmentDeadline, assessmentInviteEmail, formatAssessmentDeadline } from '@/lib/assessment-invites'
 
 const schema = z.object({
-  type: z.enum(['document', 'interview']),
+  type: z.enum(['document', 'interview', 'assessment']),
   role: z.string().trim().min(2).max(160),
   to: z.string().trim().email().optional().or(z.literal('')),
+  assessmentId: z.string().uuid().optional().or(z.literal('')),
 })
 
 export async function POST(request: Request) {
@@ -27,10 +30,16 @@ export async function POST(request: Request) {
   const deadline = new Date(); deadline.setDate(deadline.getDate() + 1)
   const deadlineLabel = deadline.toLocaleDateString('en-GB')
 
-  const subject = type === 'document' ? `Request for supporting documents - ${role}` : `Invitation to AI-powered interview - ${role}`
+  const assessment = type === 'assessment' && parsed.data.assessmentId
+    ? (await createAdminClient().from('assessment_roles').select('title,duration_minutes,question_count').eq('id', parsed.data.assessmentId).maybeSingle()).data
+    : null
+
+  const subject = type === 'document' ? `Request for supporting documents - ${role}` : type === 'assessment' ? `Final screening: skills assessment - ${role}` : `Invitation to AI-powered interview - ${role}`
   const html = type === 'document'
     ? documentRequestEmail({ applicantName: 'Applicant', role, portalUrl: `${origin}/documents/test-preview-link`, deadline: deadlineLabel })
-    : interviewInvitationEmail({ role, deadline: deadlineLabel, url: `${origin}/interview/INT-TEST-PREVIEW` })
+    : type === 'assessment'
+      ? assessmentInviteEmail({ role, assessmentTitle: assessment?.title || `${role} skills assessment`, url: `${origin}/assessment/TEST-PREVIEW?invite=preview`, deadline: formatAssessmentDeadline(assessmentDeadline()), durationMinutes: assessment?.duration_minutes ?? 30, questionCount: assessment?.question_count ?? 20 })
+      : interviewInvitationEmail({ role, deadline: deadlineLabel, url: `${origin}/interview/INT-TEST-PREVIEW` })
 
   const result = await new Resend(process.env.RESEND_API_KEY).emails.send({
     from: 'CARE International <careers@care-intrenational.org>',
