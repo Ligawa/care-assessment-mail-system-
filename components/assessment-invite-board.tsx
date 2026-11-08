@@ -1,12 +1,13 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import TestEmailButton from '@/components/test-email-button'
 
 export type PassedInterview = { id: string; name: string; email: string; role: string; completedAt: string | null }
 export type PublishedAssessment = { id: string; title: string }
-export type InviteRow = { id: string; name: string; email: string; role: string; assessmentId: string; assessmentTitle: string; status: string; invitedAt: string; deadlineAt: string; completedAt: string | null }
+export type InviteRow = { id: string; name: string; email: string; role: string; assessmentId: string; assessmentTitle: string; status: string; invitedAt: string; deadlineAt: string; completedAt: string | null; submissionId: string | null; score: { percentage: number; correct: number; total: number } | null }
 
 type Tab = 'pending' | 'invited' | 'completed'
 const CHUNK = 20
@@ -166,10 +167,10 @@ function InviteTable({ rows, completed, empty, generatedAt }: { rows: InviteRow[
   return (
     <div className="mt-6 overflow-x-auto">
       <table className="w-full min-w-[720px] text-left text-sm">
-        <thead className="text-[#455c7d]"><tr><th className="py-2 pr-3">Applicant</th><th className="py-2 pr-3">Role</th><th className="py-2 pr-3">Assessment</th><th className="py-2 pr-3">Invited</th><th className="py-2">{completed ? 'Completed' : 'Deadline'}</th></tr></thead>
+        <thead className="text-[#455c7d]"><tr><th className="py-2 pr-3">Applicant</th><th className="py-2 pr-3">Role</th><th className="py-2 pr-3">Assessment</th><th className="py-2 pr-3">Invited</th><th className="py-2 pr-3">{completed ? 'Completed' : 'Deadline'}</th>{completed && <><th className="py-2 pr-3">Score</th><th className="py-2">Review</th></>}</tr></thead>
         <tbody>{rows.map(row => {
           const expired = !completed && new Date(row.deadlineAt).getTime() < generatedAt
-          return <tr key={row.id} className="border-t border-[#ded8ca]"><td className="py-3 pr-3"><p className="font-semibold text-[#101b30]">{row.name}</p><p className="text-[#455c7d]">{row.email}</p></td><td className="py-3 pr-3">{row.role}</td><td className="py-3 pr-3">{row.assessmentTitle}</td><td className="py-3 pr-3">{formatDate(row.invitedAt)}</td><td className="py-3">{completed ? formatDate(row.completedAt) : <span className={expired ? 'font-semibold text-[#9a3412]' : ''}>{formatDate(row.deadlineAt)}{expired ? ' (expired)' : ''}</span>}</td></tr>
+          return <tr key={row.id} className="border-t border-[#ded8ca]"><td className="py-3 pr-3"><p className="font-semibold text-[#101b30]">{row.name}</p><p className="text-[#455c7d]">{row.email}</p></td><td className="py-3 pr-3">{row.role}</td><td className="py-3 pr-3">{row.assessmentTitle}</td><td className="py-3 pr-3">{formatDate(row.invitedAt)}</td><td className="py-3 pr-3">{completed ? formatDate(row.completedAt) : <span className={expired ? 'font-semibold text-[#9a3412]' : ''}>{formatDate(row.deadlineAt)}{expired ? ' (expired)' : ''}</span>}</td>{completed && <><td className="py-3 pr-3">{row.score ? <span className="font-semibold text-[#101b30]">{row.score.percentage}% <span className="font-normal text-[#455c7d]">({row.score.correct}/{row.score.total})</span></span> : '-'}</td><td className="py-3">{row.submissionId ? <Link href={`/admin/candidates/${row.submissionId}`} className="inline-flex h-9 items-center rounded-lg bg-[#f47700] px-3 text-sm font-semibold text-white">View answers and offer</Link> : <span className="text-[#7890ad]">Unavailable</span>}</td></>}</tr>
         })}</tbody>
       </table>
     </div>
