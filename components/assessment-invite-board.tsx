@@ -107,6 +107,18 @@ export default function AssessmentInviteBoard({ passed, invites, assessments, ge
         ))}
       </section>
 
+      <section aria-label="Test assessment email" className="rounded-2xl border border-[#ded8ca] bg-white p-5 sm:p-6">
+        <h2 className="text-lg font-semibold text-[#101b30]">Test the assessment invite</h2>
+        <p className="mt-1 text-sm text-[#455c7d]">Choose an assessment and send yourself the exact email applicants will receive, with its real title, duration and question count, before inviting anyone.</p>
+        <div className="mt-4 space-y-4">
+          <div>
+            <label htmlFor="test-assessment-select" className="text-sm font-semibold text-[#101b30]">Assessment to preview</label>
+            <select id="test-assessment-select" value={assessmentId} onChange={event => setAssessmentId(event.target.value)} className="mt-1 h-11 w-full rounded-xl border border-[#ded8ca] bg-white px-3 text-sm"><option value="">Choose a published assessment</option>{assessments.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select>
+          </div>
+          <TestEmailButton type="assessment" role={selectedRole} assessmentId={assessmentId} />
+        </div>
+      </section>
+
       <section className="rounded-2xl border border-[#ded8ca] bg-white p-5 sm:p-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div role="tablist" aria-label="Invite status" className="flex flex-wrap gap-2">
@@ -129,7 +141,6 @@ export default function AssessmentInviteBoard({ passed, invites, assessments, ge
               </div>
               <button type="button" onClick={send} disabled={busy || !assessmentId || selected.size === 0} className="h-11 rounded-xl bg-[#f47700] px-5 text-sm font-semibold text-white disabled:opacity-50">{busy ? progress || 'Sending...' : `Send invite${selected.size === 1 ? '' : 's'} (${selected.size})`}</button>
             </div>
-            <TestEmailButton type="assessment" role={selectedRole} />
             {result && <p role="status" className={`text-sm font-semibold ${result.ok ? 'text-[#28704d]' : 'text-[#9a3412]'}`}>{result.text}</p>}
             {failedEmails && <div><label htmlFor="failed-emails" className="text-sm font-semibold text-[#101b30]">Failed addresses (still selected, press Send to retry)</label><textarea id="failed-emails" readOnly value={failedEmails} rows={Math.min(6, failedEmails.split('\n').length)} className="mt-1 w-full rounded-xl border border-[#ded8ca] bg-[#f7f8f6] p-3 text-sm" /></div>}
             {pendingList.length === 0 ? <p className="text-sm text-[#455c7d]">No applicants are waiting for an assessment invite. Mark interviews as passed to forward applicants here.</p> : (
