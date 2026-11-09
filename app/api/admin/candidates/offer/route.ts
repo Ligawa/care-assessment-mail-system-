@@ -60,8 +60,17 @@ HOW TO ACCEPT
 3. Scan the complete signed document clearly.
 4. Reply to this email with the scanned signed copy attached by ${acceptanceDeadline}.
 
+PRE-DEPLOYMENT REQUIREMENTS
+Please submit the following documents, each in English, French and Portuguese, by ${formatLongDate(input.documentDeadline)}:
+1. Primary / basic school certificate
+2. Secondary school certificate
+3. Tertiary certificates provided during application processing
+4. Police clearance document (if available)
+5. Tax documents (if available)
+If a police clearance or tax document cannot be obtained in your country, tell us in writing before the deadline.
+
 DOCUMENTS AND TRANSLATION
-If your appointment proceeds, you will need to submit copies of your documents in English, French and Portuguese. We do not pay for translations upfront; translation costs are reimbursed once you submit the receipts. If you need documents translated, you may contact Lingua Bridge at info@linguab.com or visit https://linguab.com. More details will be explained during onboarding and documentation.
+Documents must be provided in English, French and Portuguese. We do not pay for translations upfront; translation costs are reimbursed once you submit the receipts. If you need documents translated, you may contact Lingua Bridge at info@linguab.com or visit https://linguab.com. More details will be explained during onboarding and documentation.
 
 Your appointment remains conditional until the applicable requirements are completed and confirmed by Human Resources.
 

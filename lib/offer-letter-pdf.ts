@@ -85,53 +85,133 @@ export async function buildOfferLetterPdf(input: OfferLetterInput) {
     y -= height
   }
 
-  type Clause = { title: string; paragraphs: string[]; items?: string[]; highlight?: [string, string] }
+  type DocRow = { name: string; detail: string; status: 'Required' | 'If available'; number?: number }
+  type Block =
+    | { kind: 'p'; text: string }
+    | { kind: 'sub'; heading: string; text: string }
+    | { kind: 'bullets'; items: string[] }
+    | { kind: 'steps'; items: string[] }
+    | { kind: 'highlight'; label: string; text: string }
+    | { kind: 'docs'; rows: DocRow[] }
+  type Clause = { title: string; blocks: Block[] }
+
+  const boxLeft = 48
+  const boxWidth = 502
+  const inner = boxWidth - 38
+  const bodySize = 9.5
+  const gap = 13.5
+  const headerHeight = 28
+  const languages = ['English', 'French', 'Portuguese']
+  const docRowHeight = (row: DocRow) => 52 + wrap(row.detail, font, 9, inner - 46).length * gap
+
+  const measureBlock = (block: Block) => {
+    switch (block.kind) {
+      case 'p': return wrap(block.text, font, bodySize, inner).length * gap + 6
+      case 'sub': return 13 + wrap(block.text, font, bodySize, inner).length * gap + 6
+      case 'bullets':
+      case 'steps': return block.items.reduce((sum, item) => sum + wrap(item, font, bodySize, inner - 16).length * gap + 3, 0) + 4
+      case 'highlight': return wrap(block.text, bold, 10, inner - 20).length * 14 + 34
+      case 'docs': return block.rows.reduce((sum, row) => sum + docRowHeight(row) + 8, 0)
+    }
+  }
+
+  const drawBlock = (block: Block, startCursor: number, textX: number) => {
+    let cursor = startCursor
+    switch (block.kind) {
+      case 'p': {
+        const lines = wrap(block.text, font, bodySize, inner)
+        lines.forEach((line, index) => page.drawText(line, { x: textX, y: cursor - index * gap, size: bodySize, font, color: ink }))
+        return cursor - (lines.length * gap + 6)
+      }
+      case 'sub': {
+        page.drawText(block.heading, { x: textX, y: cursor, size: bodySize, font: bold, color: navy })
+        cursor -= 13
+        const lines = wrap(block.text, font, bodySize, inner)
+        lines.forEach((line, index) => page.drawText(line, { x: textX, y: cursor - index * gap, size: bodySize, font, color: ink }))
+        return cursor - (lines.length * gap + 6)
+      }
+      case 'bullets':
+      case 'steps': {
+        block.items.forEach((item, itemIndex) => {
+          const lines = wrap(item, font, bodySize, inner - 16)
+          if (block.kind === 'bullets') page.drawCircle({ x: textX + 4, y: cursor + 3, size: 1.7, color: orange })
+          else page.drawText(`${itemIndex + 1}.`, { x: textX, y: cursor, size: bodySize, font: bold, color: orange })
+          lines.forEach((line, index) => page.drawText(line, { x: textX + 16, y: cursor - index * gap, size: bodySize, font, color: ink }))
+          cursor -= lines.length * gap + 3
+        })
+        return cursor - 4
+      }
+      case 'highlight': {
+        const lines = wrap(block.text, bold, 10, inner - 20)
+        const boxHeight = lines.length * 14 + 20
+        cursor -= 6
+        page.drawRectangle({ x: textX, y: cursor - boxHeight + 12, width: inner, height: boxHeight, color: rgb(1, 0.96, 0.92), borderColor: rgb(0.95, 0.75, 0.55), borderWidth: 0.6 })
+        page.drawText(block.label.toUpperCase(), { x: textX + 10, y: cursor - 2, size: 7, font: bold, color: orange })
+        lines.forEach((line, index) => page.drawText(line, { x: textX + 10, y: cursor - 16 - index * 14, size: 10, font: bold, color: navy }))
+        return cursor - boxHeight - 2
+      }
+      case 'docs': {
+        block.rows.forEach((row, rowIndex) => {
+          const rowHeight = docRowHeight(row)
+          const cardTop = cursor + 8
+          page.drawRectangle({ x: textX, y: cardTop - rowHeight, width: inner, height: rowHeight, color: rgb(0.97, 0.98, 1), borderColor: rgb(0.82, 0.85, 0.9), borderWidth: 0.7 })
+          page.drawCircle({ x: textX + 18, y: cardTop - 15, size: 9, color: navy })
+          const badge = String(row.number ?? rowIndex + 1)
+          page.drawText(badge, { x: textX + 18 - bold.widthOfTextAtSize(badge, 9) / 2, y: cardTop - 18.2, size: 9, font: bold, color: rgb(1, 1, 1) })
+          page.drawText(row.name, { x: textX + 36, y: cardTop - 18, size: 10, font: bold, color: navy })
+          const lines = wrap(row.detail, font, 9, inner - 46)
+          lines.forEach((line, index) => page.drawText(line, { x: textX + 36, y: cardTop - 33 - index * gap, size: 9, font, color: ink }))
+          const chipY = cardTop - 33 - (lines.length - 1) * gap - 22
+          let chipX = textX + 36
+          languages.forEach(language => {
+            const chipWidth = bold.widthOfTextAtSize(language, 7) + 14
+            page.drawRectangle({ x: chipX, y: chipY - 4, width: chipWidth, height: 13, color: rgb(1, 1, 1), borderColor: navy, borderWidth: 0.6 })
+            page.drawText(language, { x: chipX + 7, y: chipY, size: 7, font: bold, color: navy })
+            chipX += chipWidth + 6
+          })
+          const statusWidth = bold.widthOfTextAtSize(row.status.toUpperCase(), 7) + 16
+          const required = row.status === 'Required'
+          page.drawRectangle({ x: textX + inner - statusWidth - 10, y: chipY - 4, width: statusWidth, height: 13, color: required ? orange : rgb(0.9, 0.92, 0.95) })
+          page.drawText(row.status.toUpperCase(), { x: textX + inner - statusWidth - 2, y: chipY, size: 7, font: bold, color: required ? rgb(1, 1, 1) : muted })
+          cursor -= rowHeight + 8
+        })
+        return cursor
+      }
+    }
+  }
+
   let clauseNumber = 0
+  const bottomMargin = 56
   const clauseBlock = (clause: Clause) => {
     clauseNumber += 1
-    const left = 48
-    const width = 502
-    const inner = width - 38
-    const bodySize = 9.5
-    const gap = 13.5
-    const paragraphLines = clause.paragraphs.map(text => wrap(text, font, bodySize, inner))
-    const itemLines = (clause.items ?? []).map(text => wrap(text, font, bodySize, inner - 14))
-    const highlightLines = clause.highlight ? wrap(clause.highlight[1], bold, 10, inner - 20) : []
-    const headerHeight = 28
-    const height = headerHeight + 12
-      + paragraphLines.reduce((sum, lines) => sum + lines.length * gap + 6, 0)
-      + itemLines.reduce((sum, lines) => sum + lines.length * gap + 3, 0) + (itemLines.length ? 4 : 0)
-      + (clause.highlight ? highlightLines.length * 14 + 30 : 0)
-      + 8
-    if (y - height < 62) newPage()
-    const top = y + 10
-    const bottom = top - height
-    page.drawRectangle({ x: left, y: bottom, width, height, borderColor: rgb(0.82, 0.85, 0.9), borderWidth: 0.8 })
-    page.drawRectangle({ x: left, y: top - headerHeight, width, height: headerHeight, color: rgb(0.93, 0.95, 0.98), opacity: 0.85 })
-    page.drawRectangle({ x: left, y: bottom, width: 4, height, color: orange })
-    page.drawCircle({ x: left + 24, y: top - headerHeight / 2, size: 9, color: navy })
-    const label = String(clauseNumber)
-    page.drawText(label, { x: left + 24 - bold.widthOfTextAtSize(label, 9) / 2, y: top - headerHeight / 2 - 3.2, size: 9, font: bold, color: rgb(1, 1, 1) })
-    page.drawText(clause.title.toUpperCase(), { x: left + 40, y: top - headerHeight / 2 - 3.6, size: 10.5, font: bold, color: navy })
-    let cursor = top - headerHeight - 16
-    const textX = left + 20
-    paragraphLines.forEach(lines => {
-      lines.forEach((line, index) => page.drawText(line, { x: textX, y: cursor - index * gap, size: bodySize, font, color: ink }))
-      cursor -= lines.length * gap + 6
-    })
-    itemLines.forEach(lines => {
-      page.drawCircle({ x: textX + 4, y: cursor + 3, size: 1.7, color: orange })
-      lines.forEach((line, index) => page.drawText(line, { x: textX + 14, y: cursor - index * gap, size: bodySize, font, color: ink }))
-      cursor -= lines.length * gap + 3
-    })
-    if (clause.highlight) {
-      cursor -= 6
-      const boxHeight = highlightLines.length * 14 + 20
-      page.drawRectangle({ x: textX, y: cursor - boxHeight + 12, width: inner, height: boxHeight, color: rgb(1, 0.96, 0.92), borderColor: rgb(0.95, 0.75, 0.55), borderWidth: 0.6 })
-      page.drawText(clause.highlight[0].toUpperCase(), { x: textX + 10, y: cursor - 2, size: 7, font: bold, color: orange })
-      highlightLines.forEach((line, index) => page.drawText(line, { x: textX + 10, y: cursor - 16 - index * 14, size: 10, font: bold, color: navy }))
+    const remaining = clause.blocks.flatMap((block): Block[] => block.kind === 'docs' ? block.rows.map((row, index) => ({ kind: 'docs', rows: [{ ...row, number: index + 1 }] })) : [block])
+    let continued = false
+    while (remaining.length) {
+      const available = y + 10 - bottomMargin
+      const base = headerHeight + 12 + 8
+      if (base + measureBlock(remaining[0]) > available && y < 742) { newPage(); continue }
+      const chosen: Block[] = []
+      let used = base
+      while (remaining.length) {
+        const blockHeight = measureBlock(remaining[0])
+        if (used + blockHeight > available && chosen.length > 0) break
+        chosen.push(remaining.shift() as Block)
+        used += blockHeight
+      }
+      const top = y + 10
+      const bottom = top - used
+      page.drawRectangle({ x: boxLeft, y: bottom, width: boxWidth, height: used, borderColor: rgb(0.82, 0.85, 0.9), borderWidth: 0.8 })
+      page.drawRectangle({ x: boxLeft, y: top - headerHeight, width: boxWidth, height: headerHeight, color: rgb(0.93, 0.95, 0.98), opacity: 0.85 })
+      page.drawRectangle({ x: boxLeft, y: bottom, width: 4, height: used, color: orange })
+      page.drawCircle({ x: boxLeft + 24, y: top - headerHeight / 2, size: 9, color: navy })
+      const label = String(clauseNumber)
+      page.drawText(label, { x: boxLeft + 24 - bold.widthOfTextAtSize(label, 9) / 2, y: top - headerHeight / 2 - 3.2, size: 9, font: bold, color: rgb(1, 1, 1) })
+      page.drawText(`${clause.title.toUpperCase()}${continued ? ' (CONTINUED)' : ''}`, { x: boxLeft + 40, y: top - headerHeight / 2 - 3.6, size: 10.5, font: bold, color: navy })
+      let cursor = top - headerHeight - 16
+      chosen.forEach(block => { cursor = drawBlock(block, cursor, boxLeft + 20) })
+      y = bottom - 14
+      continued = true
     }
-    y = bottom - 14
   }
 
   const termsTable = (rows: [string, string][]) => {
@@ -173,87 +253,112 @@ export async function buildOfferLetterPdf(input: OfferLetterInput) {
 
   const clauses: Clause[] = [
     {
-      title: 'Remuneration',
-      paragraphs: [
-        `Your basic salary for this position is set out below. It is quoted in United States dollars (USD) and is a monthly amount, not an annual figure.`,
-        'In addition to your basic salary, you may be eligible for bonuses and allowances. The type, amount and conditions of each will be set out in your employment contract. Nothing in this letter guarantees any bonus or allowance.',
-        'Applicable taxes, social contributions and statutory deductions depend on the country through which your employment is administered, and will be explained in your employment contract.',
-      ],
-      highlight: ['Basic salary', salary],
-    },
-    {
       title: 'Position and reporting',
-      paragraphs: [
-        `You are offered the position of ${input.jobTitle} within ${input.department}. Your detailed responsibilities, performance objectives and reporting line will be confirmed in your job description and employment contract.`,
-        'You are expected to carry out your duties in line with CARE International policies, including its safeguarding, code of conduct, anti-fraud and confidentiality requirements.',
+      blocks: [
+        { kind: 'p', text: `CARE International offers you the position of ${input.jobTitle} within ${input.department}. This offer follows your application, your interview and your completed skills assessment, and reflects our confidence in your suitability for the role.` },
+        { kind: 'sub', heading: 'Duties and responsibilities', text: 'Your detailed responsibilities, performance objectives, deliverables and reporting line will be set out in your job description and employment contract. You may reasonably be asked to carry out other duties consistent with your role and experience.' },
+        { kind: 'sub', heading: 'Standards of conduct', text: 'You are expected to perform your duties in line with CARE International policies, including its code of conduct, safeguarding, anti-fraud, conflict of interest and confidentiality requirements, and to uphold the standards of integrity, accountability and respect that CARE International expects of every staff member.' },
       ],
     },
     {
-      title: 'Contract term',
-      paragraphs: [
-        `The position is offered on a ${input.contractType.toLowerCase()} basis for ${input.contractDuration}, starting on ${startDate}. The start date remains subject to all conditions in this letter being met.`,
-        'The contract is renewable in accordance with CARE International policies, funding availability and satisfactory performance. Renewal is not automatic. The full terms of employment, including notice periods and any probation period, will be set out in your employment contract.',
+      title: 'Remuneration',
+      blocks: [
+        { kind: 'p', text: 'Your basic salary for this position is stated below. It is quoted in United States dollars (USD) and is a monthly amount, not an annual figure.' },
+        { kind: 'highlight', label: 'Basic salary', text: salary },
+        { kind: 'sub', heading: 'Payment', text: 'Salary is paid monthly in arrears through the payroll arrangement confirmed in your employment contract. Payment details, the payment currency and any applicable bank requirements will be confirmed during onboarding.' },
+        { kind: 'sub', heading: 'Bonuses and allowances', text: 'Depending on your role, location and contract, you may be eligible for bonuses and allowances. The type, amount, eligibility rules and conditions of each will be set out in your employment contract. Nothing in this letter guarantees any bonus or allowance.' },
+        { kind: 'sub', heading: 'Taxes and deductions', text: 'Applicable income tax, social security contributions and other statutory deductions depend on the country through which your employment is administered. These will be explained in your employment contract and are your responsibility to the extent required by law.' },
+      ],
+    },
+    {
+      title: 'Contract term and renewal',
+      blocks: [
+        { kind: 'p', text: `The position is offered on a ${input.contractType.toLowerCase()} basis for ${input.contractDuration}, with a proposed start date of ${startDate}. The start date remains subject to every condition in this letter being met, and may move if documents or checks are delayed.` },
+        { kind: 'sub', heading: 'Renewal', text: 'The contract may be renewed in accordance with CARE International policies, funding availability, operational need and satisfactory performance. Renewal is not automatic and nothing in this letter creates an expectation of renewal or permanent employment.' },
+        { kind: 'sub', heading: 'Probation and notice', text: 'Any probation period, notice period, leave entitlement, working hours and termination provisions will be set out in your formal employment contract, which will be issued only after all conditions in this letter have been satisfied.' },
       ],
     },
     {
       title: 'Work arrangement and employing office',
-      paragraphs: [
-        `This role is offered on the following working arrangement: ${input.workArrangement}. Where the role is remote, you are responsible for a reliable internet connection and a suitable, secure working environment.`,
-        'Your appointment will be processed through the CARE International office in Rwanda and, where applicable, Cape Verde. Further details on how your employment will be administered will be explained during the onboarding and documentation stage.',
+      blocks: [
+        { kind: 'p', text: `This role is offered on the following working arrangement: ${input.workArrangement}.` },
+        { kind: 'sub', heading: 'Employing office', text: 'Your appointment will be processed through the CARE International office in Rwanda and, where applicable, Cape Verde. Human Resources will confirm how your employment will be administered, including the applicable legal and payroll arrangements, during onboarding and documentation.' },
+        { kind: 'sub', heading: 'Remote working responsibilities', text: 'Where the role is remote, you are responsible for a reliable internet connection, a suitable and secure working environment, and being available during agreed working hours. You must protect CARE International information and systems and follow its information security rules.' },
       ],
     },
     {
-      title: 'Conditions of offer',
-      paragraphs: ['This offer is conditional upon each of the following being completed to the satisfaction of CARE International:'],
-      items: [
-        'Verification of academic and professional qualifications: the certificates you listed must be genuine and match the information you provided during recruitment.',
-        'Verification of references and employment history: we will contact your referees and may confirm your previous roles and dates of employment.',
-        'Confirmation of eligibility to work in the applicable country of employment.',
-        'Completion of required compliance, safeguarding and background checks.',
-        'Submission and verification of all required onboarding documentation.',
+      title: 'Conditions of this offer',
+      blocks: [
+        { kind: 'p', text: 'This offer is conditional. It becomes a final appointment only when each condition below has been completed to the satisfaction of CARE International:' },
+        { kind: 'bullets', items: [
+          'Verification of qualifications: every academic and professional certificate you declared must be genuine, issued by a recognised institution, and consistent with the information you gave during recruitment.',
+          'Verification of references and employment history: we will contact your referees and may confirm your previous roles, responsibilities and dates of employment.',
+          'Eligibility to work: you must confirm that you are legally able to work in, or be engaged from, the applicable country of employment.',
+          'Compliance checks: you must complete CARE International safeguarding, conduct and background screening requirements.',
+          'Pre-deployment documents: you must submit and have verified every document listed in the Pre-deployment Requirements section of this letter.',
+        ] },
       ],
     },
     {
-      title: 'Document and language requirements',
-      paragraphs: [
-        'If your appointment proceeds, you must submit copies of your documents, including relevant academic, professional and training certificates, in English, French and Portuguese.',
-        'Where an original document is not available in one or more of these languages, you are responsible for arranging a professional translation and submitting it together with the original.',
+      title: 'Pre-deployment requirements',
+      blocks: [
+        { kind: 'p', text: 'Before you can be deployed, you must provide the documents listed below. Every document must be provided in English, French and Portuguese. Where the original is issued in only one language, you must supply certified or professional translations into the other two languages together with the original.' },
+        { kind: 'docs', rows: [
+          { name: 'Primary / basic school certificate', detail: 'Certificate of completion of primary or basic education, or the equivalent leaving certificate issued by the school or national examination authority.', status: 'Required' },
+          { name: 'Secondary school certificate', detail: 'Certificate of completion of secondary education (for example O-Level, A-Level, high school diploma, baccalaureate or the national equivalent), with the results transcript where one was issued.', status: 'Required' },
+          { name: 'Tertiary certificates', detail: 'All diplomas, degrees and professional certificates you declared during application processing. Each must match the qualifications listed in your application so that CARE International can verify them with the issuing institution.', status: 'Required' },
+          { name: 'Police clearance document', detail: 'A recent police clearance certificate (certificate of good conduct) from your country of residence, confirming you have no criminal record that would prevent your engagement.', status: 'If available' },
+          { name: 'Tax documents', detail: 'Your tax identification number or tax registration document and, where issued in your country, a recent tax clearance or compliance certificate.', status: 'If available' },
+        ] },
+        { kind: 'sub', heading: 'Documents marked "If available"', text: 'If a police clearance or tax document cannot be issued in your country, or cannot be obtained before the deadline, tell Human Resources in writing before the deadline, explaining why and what you have already applied for. Human Resources will advise on an alternative arrangement.' },
+        { kind: 'sub', heading: 'Quality of copies', text: 'Submit clear, complete and legible scanned copies in PDF or image format. Each page, stamp and signature must be visible. Name each file clearly, for example "Secondary certificate - French". Documents that are cropped, unreadable or incomplete will be returned for resubmission.' },
+        { kind: 'highlight', label: 'Submit all documents by', text: documentDeadline },
       ],
     },
     {
-      title: 'Translation costs and support',
-      paragraphs: [
-        'CARE International does not pay for translations upfront. Translation costs are reimbursed once you submit the receipts, together with the translated documents, in line with applicable organisational procedures.',
-        'If you need documents translated into English, French or Portuguese, you may contact Lingua Bridge at info@linguab.com or visit https://linguab.com. Further details will be explained during onboarding and documentation.',
+      title: 'Languages, translation and costs',
+      blocks: [
+        { kind: 'p', text: 'English, French and Portuguese are all required because CARE International works across offices and partners that operate in different languages, and records must be verifiable in each.' },
+        { kind: 'sub', heading: 'Translation costs', text: 'CARE International does not pay for translations upfront. Translation costs are reimbursed once you submit the translation receipts, together with the translated documents, in line with applicable organisational procedures. Keep every receipt.' },
+        { kind: 'sub', heading: 'Translation support', text: 'If you need documents translated into English, French or Portuguese, you may contact Lingua Bridge at info@linguab.com or visit https://linguab.com. You are free to use another professional translator, provided the translation is complete and accurate. Further details will be explained during onboarding and documentation.' },
       ],
     },
     {
-      title: 'Document submission deadline',
-      paragraphs: [
-        'All requested documents must be submitted to Human Resources by the date below.',
-        'Failure to provide required documentation, or submission of documents that cannot be satisfactorily verified, may result in a delay, amendment or withdrawal of this conditional offer.',
+      title: 'Document submission and verification',
+      blocks: [
+        { kind: 'sub', heading: 'How to submit', text: 'Reply to the email that accompanied this offer, quoting your HR reference, and attach your documents. If your files are too large for one email, send them in several emails with the same reference in each subject line.' },
+        { kind: 'sub', heading: 'Verification', text: 'CARE International may contact issuing institutions, referees and authorities to verify any document. By accepting this offer you authorise these checks. Original documents may be requested at a later stage.' },
+        { kind: 'sub', heading: 'If documents are late or cannot be verified', text: 'Failure to provide the required documentation by the deadline, or submission of documents that cannot be satisfactorily verified, may result in a delay to your start date, an amendment of this offer or its withdrawal. If you expect a delay, contact Human Resources before the deadline.' },
+        { kind: 'sub', heading: 'Confidentiality of your information', text: 'Documents you provide are used only for recruitment, verification, onboarding and employment administration, are handled confidentially, and are shared only with people who need them for those purposes.' },
       ],
-      highlight: ['Submit documents by', documentDeadline],
     },
     {
-      title: 'Acceptance',
-      paragraphs: [
-        'To accept this offer, please sign the acceptance page of this letter in ink and return the scanned copy to Human Resources, using the reply address of the email that accompanied this offer.',
-        'If acceptance is not received by the deadline below, the offer may be considered to have lapsed.',
+      title: 'How to accept this offer',
+      blocks: [
+        { kind: 'p', text: 'To accept, follow the steps below. Acceptance confirms your intention to proceed; it does not replace the pre-deployment requirements.' },
+        { kind: 'steps', items: [
+          'Read the whole letter carefully, including every clause above.',
+          'Print the letter and sign the Applicant Acceptance page in ink.',
+          'Scan the complete signed document clearly, with all pages in order.',
+          'Email the scanned copy to Human Resources by replying to the email that accompanied this offer.',
+          'Submit your pre-deployment documents by the document deadline above.',
+        ] },
+        { kind: 'highlight', label: 'Accept by', text: acceptanceDeadline },
+        { kind: 'p', text: 'If acceptance is not received by this date, the offer may be considered to have lapsed.' },
       ],
-      highlight: ['Accept by', acceptanceDeadline],
     },
     {
-      title: 'Important information',
-      paragraphs: [
-        'This conditional offer does not constitute a final appointment or employment contract. A formal contract will only be issued once every condition in this letter has been met.',
-        'CARE International reserves the right to withdraw or amend this offer if any condition is not met, or if information provided during the recruitment process is found to be inaccurate or incomplete.',
+      title: 'Withdrawal and important information',
+      blocks: [
+        { kind: 'p', text: 'This conditional offer does not constitute a final appointment or employment contract. A formal contract will be issued only once every condition in this letter has been met and confirmed by Human Resources.' },
+        { kind: 'p', text: 'CARE International reserves the right to withdraw or amend this offer if any condition is not met, if a document is found to be false, misleading or altered, or if information provided during the recruitment process is found to be inaccurate or incomplete.' },
+        { kind: 'p', text: 'If you have questions about any part of this letter, reply to the accompanying email and quote your HR reference. Please ask before signing if anything is unclear.' },
       ],
     },
   ]
   clauses.forEach(clauseBlock)
 
-  if (y - 115 < 62) newPage()
+  if (y - 190 < 62) newPage()
   paragraph('We look forward to completing the remaining requirements with you.')
   paragraph('Yours sincerely,')
   if (y - 90 < 55) newPage()
@@ -270,6 +375,7 @@ export async function buildOfferLetterPdf(input: OfferLetterInput) {
   page.drawText('APPLICANT ACCEPTANCE', { x: 55, y, size: 15, font: bold, color: navy })
   y -= 30
   paragraph(`I, ${input.applicantName}, acknowledge receipt of this conditional offer for the position of ${input.jobTitle} at a basic salary of ${salary}, and confirm my intention to accept the offer subject to the conditions stated above.`)
+  paragraph(`I understand that I must submit all pre-deployment documents (school certificates, tertiary certificates, and police clearance and tax documents where available) in English, French and Portuguese by ${documentDeadline}.`)
   y -= 16
   const signatureRow = (labelText: string, value?: string) => {
     page.drawText(labelText, { x: 55, y, size: 8, font: bold, color: muted })
