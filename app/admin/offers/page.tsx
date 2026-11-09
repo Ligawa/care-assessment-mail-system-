@@ -35,18 +35,41 @@ export default async function OffersPage() {
   const offers = (data ?? []) as OfferRow[]
   const sent = offers.filter(offer => offer.offer_status === 'sent').length
 
+  const { data: completedInvites } = await supabase.from('assessment_invites').select('submission_id').eq('status', 'completed').not('submission_id', 'is', null)
+  const offeredIds = new Set(offers.map(offer => offer.id))
+  const eligibleIds = [...new Set((completedInvites ?? []).map(invite => invite.submission_id as string))].filter(id => !offeredIds.has(id))
+  const { data: eligibleData } = eligibleIds.length
+    ? await supabase.from('assessment_submissions').select('id,full_name,email,created_at').in('id', eligibleIds).order('created_at', { ascending: false })
+    : { data: [] as { id: string; full_name: string; email: string; created_at: string }[] }
+  const eligible = eligibleData ?? []
+
   return (
     <div className="min-h-screen bg-[#faf8f2] lg:flex">
       <AdminSidebar />
       <main className="min-w-0 flex-1 p-6 lg:p-12">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#f47700]">CARE International</p>
         <h1 className="mt-3 text-4xl font-semibold text-[#101b30]">Offer letters</h1>
-        <p className="mt-3 max-w-2xl text-lg text-[#455c7d]">Every conditional offer issued to candidates. Download the exact PDF a candidate received, or issue new offers from a candidate&apos;s profile.</p>
+        <p className="mt-3 max-w-2xl text-lg text-[#455c7d]">Every conditional offer issued to candidates. Download the exact PDF a candidate received, or issue new offers to candidates who completed their assessment.</p>
 
         <dl className="mt-8 grid max-w-xl gap-4 sm:grid-cols-2">
           <div className="rounded-2xl border border-[#ded8ca] bg-white p-5"><dt className="text-sm text-[#455c7d]">Offers sent</dt><dd className="mt-1 text-3xl font-semibold text-[#101b30]">{sent}</dd></div>
           <div className="rounded-2xl border border-[#ded8ca] bg-white p-5"><dt className="text-sm text-[#455c7d]">Needs attention</dt><dd className="mt-1 text-3xl font-semibold text-[#101b30]">{offers.length - sent}</dd></div>
         </dl>
+
+        <section className="mt-8 rounded-3xl border border-[#ded8ca] bg-white p-5">
+          <h2 className="text-xl font-semibold text-[#101b30]">Ready for an offer</h2>
+          <p className="mt-1 text-sm text-[#455c7d]">Candidates who completed their skills assessment and have not received an offer yet.</p>
+          {eligible.length === 0 ? <p className="mt-4 text-sm text-[#455c7d]">No completed candidates are waiting for an offer.</p> : (
+            <ul className="mt-4 divide-y divide-[#ded8ca]">
+              {eligible.map(candidate => (
+                <li key={candidate.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                  <div><p className="font-semibold text-[#101b30]">{candidate.full_name}</p><p className="text-sm text-[#455c7d]">{candidate.email}</p></div>
+                  <Link href={`/admin/candidates/${candidate.id}#offer-form`} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#f47700] px-4 text-sm font-semibold text-white transition hover:opacity-90"><FileText className="size-4" />Issue offer letter</Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
         <section className="mt-8 overflow-x-auto rounded-3xl border border-[#ded8ca] bg-white">
           {offers.length === 0 ? (
