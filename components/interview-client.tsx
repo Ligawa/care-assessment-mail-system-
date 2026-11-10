@@ -21,7 +21,11 @@ export default function InterviewClient({ role, accessCode, voiceUri }: Props) {
   const [heardSomething, setHeardSomething] = useState(false)
   const [cameraReady, setCameraReady] = useState(false)
   const [microphoneMuted, setMicrophoneMuted] = useState(false)
+  const [loudspeaker, setLoudspeaker] = useState(true)
   const [transcript, setTranscript] = useState<Utterance[]>([])
+  const loudspeakerRef = useRef(true)
+  const microphoneMutedRef = useRef(false)
+  const lastEmmyText = useRef('')
   const spoken = useRef('')
   const committed = useRef('')
   const wantListening = useRef(false)
@@ -46,15 +50,44 @@ export default function InterviewClient({ role, accessCode, voiceUri }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voiceUri])
 
+  function setAudioSession(type: 'playback' | 'play-and-record') {
+    const session = (navigator as unknown as { audioSession?: { type: string } }).audioSession
+    if (session) { try { session.type = type } catch { /* unsupported audio session type */ } }
+  }
+
+  // Phones switch to the earpiece while the microphone is open, so the mic is released while Emmy speaks.
+  function releaseMicrophone() {
+    const current = stream.current
+    if (!current) return
+    current.getAudioTracks().forEach(track => { track.stop(); current.removeTrack(track) })
+  }
+
+  async function reacquireMicrophone() {
+    const current = stream.current
+    if (!current || current.getAudioTracks().some(track => track.readyState === 'live')) return
+    try {
+      const audio = await navigator.mediaDevices.getUserMedia({ audio: true })
+      audio.getAudioTracks().forEach(track => { track.enabled = !microphoneMutedRef.current; current.addTrack(track) })
+    } catch { setError('Microphone access was lost. Please allow microphone access, then select Speak.') }
+  }
+
   function speak(text: string) {
+    lastEmmyText.current = text
     window.speechSynthesis.cancel()
+    if (loudspeakerRef.current) { stopListening(); void stopRecording(); releaseMicrophone(); setAudioSession('playback') }
     if (!chosenVoice.current) chosenVoice.current = pickVoice()
     const utterance = new SpeechSynthesisUtterance(text)
     if (chosenVoice.current) { utterance.voice = chosenVoice.current; utterance.lang = chosenVoice.current.lang }
     else utterance.lang = 'en-US'
-    utterance.rate = 0.9; utterance.pitch = 1.02
-    utterance.onend = () => startListening()
+    utterance.rate = 0.9; utterance.pitch = 1.02; utterance.volume = 1
+    utterance.onend = () => { void (async () => { setAudioSession('play-and-record'); await reacquireMicrophone(); startListening() })() }
     window.speechSynthesis.speak(utterance)
+  }
+
+  function toggleLoudspeaker() {
+    const next = !loudspeaker
+    loudspeakerRef.current = next; setLoudspeaker(next)
+    if (lastEmmyText.current && !done) speak(lastEmmyText.current)
   }
 
   async function askEmmy(next: Utterance[]) {
@@ -148,7 +181,7 @@ export default function InterviewClient({ role, accessCode, voiceUri }: Props) {
 
   function stopListening() { wantListening.current = false; recognition.current?.stop(); setListening(false) }
 
-  function toggleMicrophone() { const muted = !microphoneMuted; stream.current?.getAudioTracks().forEach(track => { track.enabled = !muted }); setMicrophoneMuted(muted); if (muted) stopListening() }
+  function toggleMicrophone() { const muted = !microphoneMuted; microphoneMutedRef.current = muted; stream.current?.getAudioTracks().forEach(track => { track.enabled = !muted }); setMicrophoneMuted(muted); if (muted) stopListening() }
 
   async function submitAnswer() {
     if (busy) return
@@ -188,5 +221,5 @@ export default function InterviewClient({ role, accessCode, voiceUri }: Props) {
 
   if (!started) return <main className="min-h-screen bg-[#f7f8f6] p-6 text-[#173f35]"><div className="mx-auto max-w-xl rounded-[2rem] bg-white p-8 shadow-xl"><img src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Care%20Intl%20logo-8dXiV9R7mb3d8yCbmDLtahqHcQJ2Xm.png" alt="CARE International" className="h-10" /><p className="mt-12 text-sm font-semibold uppercase tracking-[0.2em] text-[#e87518]">Live interview</p><h1 className="mt-3 text-4xl font-semibold">Meet Emmy Nana</h1><p className="mt-4 leading-7 text-[#5d7169]">This interview is for the <strong className="font-semibold text-[#173f35]">{role}</strong> position at CARE International.</p><p className="mt-4 text-sm leading-6 text-[#5d7169]">Enter your details below to begin your live interview with Emmy Nana.</p><p className="mt-4 text-sm text-[#6b7f77]">Emmy Nana will explain the role, compensation, locations, and documentation requirements aloud before the interview begins.</p><label className="mt-8 grid gap-2 text-sm font-semibold">Your full name<input required value={name} onChange={event => setName(event.target.value)} className="h-12 rounded-xl border px-4 font-normal" placeholder="Enter your name" /></label><label className="mt-4 grid gap-2 text-sm font-semibold">Email address<input required type="email" value={email} onChange={event => setEmail(event.target.value)} className="h-12 rounded-xl border px-4 font-normal" placeholder="you@example.com" /></label>{error && <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}<button onClick={begin} className="mt-6 w-full rounded-xl bg-[#e87518] px-5 py-3 font-semibold text-white">Join interview</button><p className="mt-4 text-sm text-[#6b7f77]">Your browser will request camera and microphone access.</p></div></main>
 
-  return <main className="min-h-screen bg-[#f7f8f6] p-4 text-[#173f35] sm:p-6"><div className="mx-auto max-w-7xl"><header className="flex items-center justify-between"><img src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Care%20Intl%20logo-8dXiV9R7mb3d8yCbmDLtahqHcQJ2Xm.png" alt="CARE International" className="h-9" /><span className="text-sm text-[#6b7f77]">{role}</span></header><section className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(360px,0.9fr)]"><div className="rounded-3xl bg-white p-4 text-center shadow-lg sm:p-6"><div className="relative flex min-h-[55vh] items-center justify-center overflow-hidden rounded-2xl bg-[#173f35]"><video ref={video} muted autoPlay playsInline className={`max-h-[72vh] w-full object-contain ${cameraReady ? 'opacity-100' : 'opacity-0'}`} aria-label="Your live camera preview" />{!cameraReady && <div className="absolute inset-0 grid place-items-center p-6 text-center text-white"><div><Camera className="mx-auto size-10 text-[#f5a15c]" /><p className="mt-3 font-semibold">Camera preview loading</p><p className="mt-1 text-sm text-white/75">Allow camera access to see your live video here.</p></div></div>}<span className="absolute bottom-3 left-3 rounded-full bg-black/50 px-3 py-1 text-xs font-semibold text-white">{cameraReady ? 'Live camera' : 'Camera starting'}</span></div><div className="mx-auto mt-6 grid size-24 place-items-center rounded-full bg-[#e87518] text-3xl font-semibold text-white">EN</div><h2 className="mt-4 text-xl font-semibold">Emmy Nana</h2><p className="text-sm text-[#6b7f77]">Professional interviewer</p></div><div className="rounded-3xl bg-white p-6 pb-24 shadow-lg sm:pb-6"><div className="flex items-center gap-3"><div className={`grid size-12 place-items-center rounded-full ${listening ? 'bg-[#e87518] text-white' : 'bg-[#e9f2ec] text-[#173f35]'}`}><Volume2 className="size-5" /></div><div><p className="font-semibold">{busy ? 'Emmy Nana is preparing the next question' : listening ? 'Your turn to speak' : done ? 'Interview complete' : 'Emmy Nana is listening'}</p><p className="text-sm text-[#6b7f77]">{listening ? 'Speak naturally, then select Done speaking.' : 'The conversation is private and voice-led.'}</p></div></div>{done ? <div className="mt-10 rounded-2xl bg-[#e9f2ec] p-6 text-center"><CheckCircle2 className="mx-auto size-10 text-[#36835d]" /><h2 className="mt-3 text-xl font-semibold">Thank you, {name}</h2><p className="mt-2 text-[#5d7169]">Your interview has been submitted for review.</p></div> : <div className="fixed inset-x-0 bottom-0 z-20 flex flex-wrap gap-2 border-t border-[#dbe5df] bg-white/95 p-3 shadow-[0_-8px_24px_rgba(23,63,53,0.12)] backdrop-blur sm:static sm:mt-10 sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none sm:backdrop-blur-0"><button type="button" onClick={submitAnswer} disabled={busy} className="rounded-xl bg-[#e87518] px-5 py-3 font-semibold text-white disabled:opacity-40">Done speaking</button><button type="button" onClick={() => listening ? stopListening() : startListening()} disabled={busy} className="rounded-xl border border-[#cbd9d1] px-5 py-3 font-semibold">{listening ? <MicOff className="mr-2 inline size-4" /> : <Mic className="mr-2 inline size-4" />}{listening ? 'Pause' : 'Speak'}</button><button type="button" onClick={toggleMicrophone} disabled={busy} className="rounded-xl border border-[#cbd9d1] px-4 py-3 font-semibold" aria-pressed={microphoneMuted}>{microphoneMuted ? <MicOff className="mr-2 inline size-4" /> : <Mic className="mr-2 inline size-4" />}{microphoneMuted ? 'Unmute' : 'Mute'}</button><button type="button" onClick={finish} disabled={busy} className="ml-auto rounded-xl border border-red-200 px-5 py-3 font-semibold text-red-700"><Phone className="mr-2 inline size-4" />End interview</button></div>}{error && <p className="mt-5 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}</div></section></div></main>
+  return <main className="min-h-screen bg-[#f7f8f6] p-4 text-[#173f35] sm:p-6"><div className="mx-auto max-w-7xl"><header className="flex items-center justify-between"><img src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Care%20Intl%20logo-8dXiV9R7mb3d8yCbmDLtahqHcQJ2Xm.png" alt="CARE International" className="h-9" /><span className="text-sm text-[#6b7f77]">{role}</span></header><section className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(360px,0.9fr)]"><div className="rounded-3xl bg-white p-4 text-center shadow-lg sm:p-6"><div className="relative flex min-h-[55vh] items-center justify-center overflow-hidden rounded-2xl bg-[#173f35]"><video ref={video} muted autoPlay playsInline className={`max-h-[72vh] w-full object-contain ${cameraReady ? 'opacity-100' : 'opacity-0'}`} aria-label="Your live camera preview" />{!cameraReady && <div className="absolute inset-0 grid place-items-center p-6 text-center text-white"><div><Camera className="mx-auto size-10 text-[#f5a15c]" /><p className="mt-3 font-semibold">Camera preview loading</p><p className="mt-1 text-sm text-white/75">Allow camera access to see your live video here.</p></div></div>}<span className="absolute bottom-3 left-3 rounded-full bg-black/50 px-3 py-1 text-xs font-semibold text-white">{cameraReady ? 'Live camera' : 'Camera starting'}</span></div><div className="mx-auto mt-6 grid size-24 place-items-center rounded-full bg-[#e87518] text-3xl font-semibold text-white">EN</div><h2 className="mt-4 text-xl font-semibold">Emmy Nana</h2><p className="text-sm text-[#6b7f77]">Professional interviewer</p></div><div className="rounded-3xl bg-white p-6 pb-24 shadow-lg sm:pb-6"><div className="flex items-center gap-3"><div className={`grid size-12 place-items-center rounded-full ${listening ? 'bg-[#e87518] text-white' : 'bg-[#e9f2ec] text-[#173f35]'}`}><Volume2 className="size-5" /></div><div><p className="font-semibold">{busy ? 'Emmy Nana is preparing the next question' : listening ? 'Your turn to speak' : done ? 'Interview complete' : 'Emmy Nana is listening'}</p><p className="text-sm text-[#6b7f77]">{listening ? 'Speak naturally, then select Done speaking.' : 'The conversation is private and voice-led.'}</p></div></div>{done ? <div className="mt-10 rounded-2xl bg-[#e9f2ec] p-6 text-center"><CheckCircle2 className="mx-auto size-10 text-[#36835d]" /><h2 className="mt-3 text-xl font-semibold">Thank you, {name}</h2><p className="mt-2 text-[#5d7169]">Your interview has been submitted for review.</p></div> : <div className="fixed inset-x-0 bottom-0 z-20 flex flex-wrap gap-2 border-t border-[#dbe5df] bg-white/95 p-3 shadow-[0_-8px_24px_rgba(23,63,53,0.12)] backdrop-blur sm:static sm:mt-10 sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none sm:backdrop-blur-0"><button type="button" onClick={submitAnswer} disabled={busy} className="rounded-xl bg-[#e87518] px-5 py-3 font-semibold text-white disabled:opacity-40">Done speaking</button><button type="button" onClick={() => listening ? stopListening() : startListening()} disabled={busy} className="rounded-xl border border-[#cbd9d1] px-5 py-3 font-semibold">{listening ? <MicOff className="mr-2 inline size-4" /> : <Mic className="mr-2 inline size-4" />}{listening ? 'Pause' : 'Speak'}</button><button type="button" onClick={toggleMicrophone} disabled={busy} className="rounded-xl border border-[#cbd9d1] px-4 py-3 font-semibold" aria-pressed={microphoneMuted}>{microphoneMuted ? <MicOff className="mr-2 inline size-4" /> : <Mic className="mr-2 inline size-4" />}{microphoneMuted ? 'Unmute' : 'Mute'}</button><button type="button" onClick={toggleLoudspeaker} className="rounded-xl border border-[#cbd9d1] px-4 py-3 font-semibold" aria-pressed={loudspeaker}><Volume2 className="mr-2 inline size-4" />{loudspeaker ? 'Loudspeaker on' : 'Loudspeaker off'}</button><button type="button" onClick={() => lastEmmyText.current && speak(lastEmmyText.current)} disabled={busy} className="rounded-xl border border-[#cbd9d1] px-4 py-3 font-semibold">Replay question</button><button type="button" onClick={finish} disabled={busy} className="ml-auto rounded-xl border border-red-200 px-5 py-3 font-semibold text-red-700"><Phone className="mr-2 inline size-4" />End interview</button></div>}{error && <p className="mt-5 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}</div></section></div></main>
 }
