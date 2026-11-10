@@ -223,10 +223,34 @@ export async function buildOfferLetterPdf(input: OfferLetterInput) {
       const rowY = top - (index + 1) * rowHeight
       if (index > 0) page.drawLine({ start: { x: 48, y: rowY + rowHeight }, end: { x: 550, y: rowY + rowHeight }, thickness: 0.5, color: rgb(0.85, 0.87, 0.9) })
       page.drawText(key.toUpperCase(), { x: 58, y: rowY + 8, size: 7.5, font: bold, color: muted })
-      page.drawText(value.length > 62 ? `${value.slice(0, 59)}...` : value, { x: 205, y: rowY + 7.5, size: 9.5, font: index === 5 ? bold : font, color: index === 5 ? navy : ink })
+      page.drawText(value.length > 62 ? `${value.slice(0, 59)}...` : value, { x: 205, y: rowY + 7.5, size: 9.5, font: key === 'Basic salary' ? bold : font, color: key === 'Basic salary' ? navy : ink })
     })
     y = top - rows.length * rowHeight - 18
   }
+
+  const isReceivables = /receivable/i.test(input.jobTitle)
+  const roleResponsibilities = isReceivables
+    ? [
+        'Customer and donor invoicing: prepare, review and issue accurate invoices, grant billings and debit notes on time, in line with agreed contract and donor terms.',
+        'Receivables ledger management: record all invoices, receipts and adjustments in the accounting system, and keep the accounts receivable sub-ledger complete, accurate and up to date.',
+        'Cash application: match incoming payments and bank receipts to the correct invoices and accounts, investigate unidentified receipts and resolve unapplied cash promptly.',
+        'Collections and follow-up: monitor ageing balances, contact debtors and funding partners about overdue amounts, agree payment plans and escalate disputed or long-outstanding items to management.',
+        'Reconciliation: reconcile the receivables sub-ledger to the general ledger and to partner and donor statements every month, and clear reconciling items without delay.',
+        'Month-end and year-end close: prepare receivables schedules, accruals, ageing analysis and supporting documentation for the monthly close, internal review and external audit.',
+        'Reporting: produce periodic receivables, ageing and cash-forecast reports for Finance management, and flag risks to recoverability such as doubtful or write-off balances.',
+        'Compliance and controls: apply CARE International financial policies, segregation of duties, donor compliance rules and anti-fraud controls, and keep a complete, auditable record of every transaction.',
+        'Audit support: respond to internal and external auditor requests accurately and within agreed timelines, and implement agreed audit recommendations.',
+        'Collaboration: work with Programmes, Grants, Procurement and Treasury colleagues across country offices to resolve billing queries and improve receivables processes.',
+      ]
+    : [
+        `Deliver the core duties of the ${input.jobTitle} position to the standard and timelines agreed with your line manager, within ${input.department}.`,
+        'Plan, organise and complete assigned work, keeping accurate records and documentation for every task and decision.',
+        'Prepare regular reports, updates and analysis on your area of work for your line manager and, where required, for donors and partners.',
+        'Apply CARE International policies, procedures, internal controls and donor requirements consistently in all of your work.',
+        'Collaborate with colleagues across country offices, programmes and support functions, sharing information openly and responding to requests promptly.',
+        'Support internal reviews, audits and quality assurance activities, and act on agreed recommendations.',
+        'Contribute to continuous improvement of processes, tools and ways of working in your team.',
+      ]
 
   const salary = formatMonthlySalary(input.basicSalary)
   const startDate = formatLongDate(input.startDate)
@@ -243,6 +267,8 @@ export async function buildOfferLetterPdf(input: OfferLetterInput) {
     ['Position', input.jobTitle],
     ['Department / programme', input.department],
     ['Work arrangement', input.workArrangement],
+    ['Processing office', 'CARE International, Kigali, Rwanda'],
+    ['Duty station', 'Kigali, Rwanda (working remotely)'],
     ['Contract type', `${input.contractType}, ${input.contractDuration}`],
     ['Basic salary', salary],
     ['Proposed start date', startDate],
@@ -256,8 +282,29 @@ export async function buildOfferLetterPdf(input: OfferLetterInput) {
       title: 'Position and reporting',
       blocks: [
         { kind: 'p', text: `CARE International offers you the position of ${input.jobTitle} within ${input.department}. This offer follows your application, your interview and your completed skills assessment, and reflects our confidence in your suitability for the role.` },
-        { kind: 'sub', heading: 'Duties and responsibilities', text: 'Your detailed responsibilities, performance objectives, deliverables and reporting line will be set out in your job description and employment contract. You may reasonably be asked to carry out other duties consistent with your role and experience.' },
+        { kind: 'sub', heading: 'Reporting line', text: 'You will report to the line manager named in your job description and employment contract. Your day-to-day work will be directed by that manager through regular one-to-one meetings, agreed work plans and performance objectives.' },
         { kind: 'sub', heading: 'Standards of conduct', text: 'You are expected to perform your duties in line with CARE International policies, including its code of conduct, safeguarding, anti-fraud, conflict of interest and confidentiality requirements, and to uphold the standards of integrity, accountability and respect that CARE International expects of every staff member.' },
+      ],
+    },
+    {
+      title: 'Scope of work and key responsibilities',
+      blocks: [
+        { kind: 'p', text: `As ${input.jobTitle}, you will be accountable for the following scope of work. This list describes the main responsibilities of the role and is not exhaustive.` },
+        { kind: 'bullets', items: roleResponsibilities },
+        { kind: 'sub', heading: 'Performance expectations', text: 'Your work will be measured against objectives agreed with your line manager, including accuracy, timeliness, quality of records, compliance with policy and the quality of your working relationships. Performance will be reviewed formally during probation and at least once a year.' },
+        { kind: 'sub', heading: 'Additional duties', text: 'You may reasonably be asked to carry out other duties consistent with your role, skills and experience, including supporting colleagues, covering absences and contributing to organisation-wide initiatives. Your detailed job description and deliverables will be confirmed in your employment contract.' },
+      ],
+    },
+    {
+      title: 'Processing office and duty station',
+      blocks: [
+        { kind: 'p', text: 'This section states where your employment is processed and where you are based. Please read it carefully, as it affects your administration, travel and reporting.' },
+        { kind: 'highlight', label: 'Current processing office', text: 'CARE International, Kigali, Rwanda' },
+        { kind: 'sub', heading: 'Duty station', text: 'Your official duty station is Kigali, Rwanda. All administrative matters, including contract processing, onboarding, payroll coordination and human resources support, are currently handled by the Kigali office.' },
+        { kind: 'sub', heading: 'Remote working from your location', text: 'You will perform your duties remotely and are not required to relocate to Kigali. Remote working does not change your duty station: you remain a member of the Kigali office team and are bound by its policies and reporting arrangements.' },
+        { kind: 'sub', heading: 'Attendance at meetings, functions and events in Rwanda', text: 'From time to time you may be required to travel to Rwanda to attend meetings, trainings, workshops, functions and events. You will be given reasonable notice. Travel and related costs for such assignments will be covered under CARE International travel policy, and you must hold the travel documents and visas needed to enter Rwanda.' },
+        { kind: 'sub', heading: 'Possible transfer to the Cape Verde (Praia) office', text: 'After completing one (1) year of service, you may be transferred to the CARE International office in Praia, Cape Verde. If transferred, you will continue to work remotely, but your reporting line, administration and processing office will move to the Praia office. Any transfer will depend on operational need, funding and performance, and will be confirmed to you in writing with reasonable notice.' },
+        { kind: 'sub', heading: 'Effect of a transfer', text: 'A transfer to Praia does not create a new employment or restart your service. Your other terms continue unless varied in writing. Applicable legal, tax and payroll arrangements may change with the processing office, and Human Resources will explain these before the transfer takes effect.' },
       ],
     },
     {
@@ -279,10 +326,10 @@ export async function buildOfferLetterPdf(input: OfferLetterInput) {
       ],
     },
     {
-      title: 'Work arrangement and employing office',
+      title: 'Work arrangement',
       blocks: [
-        { kind: 'p', text: `This role is offered on the following working arrangement: ${input.workArrangement}.` },
-        { kind: 'sub', heading: 'Employing office', text: 'Your appointment will be processed through the CARE International office in Rwanda and, where applicable, Cape Verde. Human Resources will confirm how your employment will be administered, including the applicable legal and payroll arrangements, during onboarding and documentation.' },
+        { kind: 'p', text: `This role is offered on the following working arrangement: ${input.workArrangement}. Your processing office is Kigali, Rwanda, and your duty station is Kigali, Rwanda, as set out above.` },
+        { kind: 'sub', heading: 'Employment administration', text: 'Human Resources will confirm how your employment will be administered, including the applicable legal and payroll arrangements, during onboarding and documentation.' },
         { kind: 'sub', heading: 'Remote working responsibilities', text: 'Where the role is remote, you are responsible for a reliable internet connection, a suitable and secure working environment, and being available during agreed working hours. You must protect CARE International information and systems and follow its information security rules.' },
       ],
     },
