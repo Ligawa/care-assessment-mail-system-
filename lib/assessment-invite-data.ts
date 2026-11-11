@@ -7,7 +7,7 @@ export type AssessmentInviteData = { passed: PassedInterview[]; invites: InviteR
 export async function loadAssessmentInviteData(): Promise<AssessmentInviteData> {
   const admin = createAdminClient()
   const [{ data: interviews }, { data: assessments }, { data: invites }] = await Promise.all([
-    admin.from('interview_sessions').select('id,candidate_name,candidate_email,role,completed_at').eq('status', 'completed').eq('decision_status', 'passed').order('completed_at', { ascending: false }),
+    admin.from('interview_sessions').select('id,candidate_name,candidate_email,role,completed_at').eq('status', 'completed').eq('decision_status', 'passed').is('assessment_removed_at', null).order('completed_at', { ascending: false }),
     admin.from('assessment_roles').select('id,title').eq('status', 'published').order('title'),
     admin.from('assessment_invites').select('id,candidate_name,candidate_email,role,assessment_id,status,invited_at,deadline_at,completed_at,submission_id').order('invited_at', { ascending: false }),
   ])

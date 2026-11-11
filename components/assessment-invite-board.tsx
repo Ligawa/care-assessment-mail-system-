@@ -32,6 +32,7 @@ export default function AssessmentInviteBoard({ passed, invites, assessments, ge
   const [progress, setProgress] = useState('')
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null)
   const [failedEmails, setFailedEmails] = useState('')
+  const [confirmRemove, setConfirmRemove] = useState<string[] | null>(null)
 
   const invitedKeys = useMemo(() => new Set(invites.map(invite => `${invite.email}|${invite.role.toLowerCase()}`)), [invites])
   const pending = useMemo(() => passed.filter(item => !invitedKeys.has(`${item.email}|${item.role.toLowerCase()}`)), [passed, invitedKeys])
@@ -52,6 +53,24 @@ export default function AssessmentInviteBoard({ passed, invites, assessments, ge
   function toggle(id: string) { setSelected(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next }) }
   const allVisibleSelected = pendingList.length > 0 && pendingList.every(item => selected.has(item.id))
   function toggleAll() { setSelected(allVisibleSelected ? new Set() : new Set(pendingList.map(item => item.id))) }
+
+  async function removePending(ids: string[]) {
+    if (!ids.length) return
+    setBusy(true); setResult(null)
+    try {
+      const response = await fetch('/api/admin/assessments/pending', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ interviewIds: ids }) })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) setResult({ ok: false, text: data.error || 'The applicants could not be removed.' })
+      else {
+        setResult({ ok: true, text: `${data.removed} applicant${data.removed === 1 ? '' : 's'} removed from the pending invite list.` })
+        setSelected(current => { const next = new Set(current); ids.forEach(id => next.delete(id)); return next })
+        router.refresh()
+      }
+    } catch {
+      setResult({ ok: false, text: 'Network error. The applicants were not removed.' })
+    }
+    setConfirmRemove(null); setBusy(false)
+  }
 
   async function send() {
     const ids = pendingList.filter(item => selected.has(item.id)).map(item => item.id)
@@ -142,13 +161,23 @@ export default function AssessmentInviteBoard({ passed, invites, assessments, ge
               </div>
               <button type="button" onClick={send} disabled={busy || !assessmentId || selected.size === 0} className="h-11 rounded-xl bg-[#f47700] px-5 text-sm font-semibold text-white disabled:opacity-50">{busy ? progress || 'Sending...' : `Send invite${selected.size === 1 ? '' : 's'} (${selected.size})`}</button>
             </div>
+            {selected.size > 0 && confirmRemove === null && <button type="button" onClick={() => setConfirmRemove([...selected])} disabled={busy} className="h-10 rounded-xl border border-[#b42318] px-4 text-sm font-semibold text-[#b42318] disabled:opacity-50">Remove selected ({selected.size})</button>}
+            {confirmRemove && (
+              <div role="alertdialog" aria-label="Confirm removal" className="flex flex-col gap-3 rounded-xl border border-[#b42318] bg-[#fef3f2] p-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-[#101b30]">Remove {confirmRemove.length} applicant{confirmRemove.length === 1 ? '' : 's'} from the pending invite list? They will no longer be offered an assessment. Their interview record is kept.</p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => removePending(confirmRemove)} disabled={busy} className="h-10 rounded-xl bg-[#b42318] px-4 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Removing...' : 'Yes, remove'}</button>
+                  <button type="button" onClick={() => setConfirmRemove(null)} disabled={busy} className="h-10 rounded-xl border border-[#ded8ca] bg-white px-4 text-sm font-semibold text-[#455c7d]">Cancel</button>
+                </div>
+              </div>
+            )}
             {result && <p role="status" className={`text-sm font-semibold ${result.ok ? 'text-[#28704d]' : 'text-[#9a3412]'}`}>{result.text}</p>}
             {failedEmails && <div><label htmlFor="failed-emails" className="text-sm font-semibold text-[#101b30]">Failed addresses (still selected, press Send to retry)</label><textarea id="failed-emails" readOnly value={failedEmails} rows={Math.min(6, failedEmails.split('\n').length)} className="mt-1 w-full rounded-xl border border-[#ded8ca] bg-[#f7f8f6] p-3 text-sm" /></div>}
             {pendingList.length === 0 ? <p className="text-sm text-[#455c7d]">No applicants are waiting for an assessment invite. Mark interviews as passed to forward applicants here.</p> : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[640px] text-left text-sm">
-                  <thead className="text-[#455c7d]"><tr><th className="py-2 pr-3"><input type="checkbox" aria-label="Select all visible applicants" checked={allVisibleSelected} onChange={toggleAll} /></th><th className="py-2 pr-3">Applicant</th><th className="py-2 pr-3">Role</th><th className="py-2">Interview passed</th></tr></thead>
-                  <tbody>{pendingList.map(item => <tr key={item.id} className="border-t border-[#ded8ca]"><td className="py-3 pr-3"><input type="checkbox" aria-label={`Select ${item.name}`} checked={selected.has(item.id)} onChange={() => toggle(item.id)} /></td><td className="py-3 pr-3"><p className="font-semibold text-[#101b30]">{item.name}</p><p className="text-[#455c7d]">{item.email}</p></td><td className="py-3 pr-3">{item.role}</td><td className="py-3">{formatDate(item.completedAt)}</td></tr>)}</tbody>
+                  <thead className="text-[#455c7d]"><tr><th className="py-2 pr-3"><input type="checkbox" aria-label="Select all visible applicants" checked={allVisibleSelected} onChange={toggleAll} /></th><th className="py-2 pr-3">Applicant</th><th className="py-2 pr-3">Role</th><th className="py-2 pr-3">Interview passed</th><th className="py-2 text-right">Actions</th></tr></thead>
+                  <tbody>{pendingList.map(item => <tr key={item.id} className="border-t border-[#ded8ca]"><td className="py-3 pr-3"><input type="checkbox" aria-label={`Select ${item.name}`} checked={selected.has(item.id)} onChange={() => toggle(item.id)} /></td><td className="py-3 pr-3"><p className="font-semibold text-[#101b30]">{item.name}</p><p className="text-[#455c7d]">{item.email}</p></td><td className="py-3 pr-3">{item.role}</td><td className="py-3 pr-3">{formatDate(item.completedAt)}</td><td className="py-3 text-right"><button type="button" onClick={() => setConfirmRemove([item.id])} disabled={busy} aria-label={`Remove ${item.name} from pending invites`} className="h-9 rounded-lg border border-[#ded8ca] px-3 text-sm font-semibold text-[#b42318] disabled:opacity-50">Remove</button></td></tr>)}</tbody>
                 </table>
               </div>
             )}
