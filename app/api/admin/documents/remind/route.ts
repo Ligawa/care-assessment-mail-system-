@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { BETWEEN_EMAILS_DELAY_MS, sendWithRetry, wait } from '@/lib/email-delivery'
 import { documentReminderEmail, formatDeadline, resolveReminderDeadline } from '@/lib/reminder-emails'
+import { deleteDocumentPortal } from '@/lib/delete-document-portal'
 
 export const maxDuration = 300
 
@@ -26,11 +27,24 @@ export async function POST(request: Request) {
 
   const resend = new Resend(process.env.RESEND_API_KEY)
   const failedEmails: string[] = []
+  const cleanupFailed: string[] = []
   let sent = 0
+  let deleted = 0
   const list = portals || []
   for (let index = 0; index < list.length; index += 1) {
     const portal = list[index]
     const email = portal.applicant_email.toLowerCase()
+
+    if ((portal.reminder_count || 0) >= 2) {
+      try {
+        await deleteDocumentPortal(supabase, portal.id)
+        deleted += 1
+      } catch {
+        cleanupFailed.push(email)
+      }
+      continue
+    }
+
     const token = randomBytes(32).toString('hex')
     const deadline = resolveReminderDeadline(portal.deadline_at)
     try {
@@ -40,10 +54,18 @@ export async function POST(request: Request) {
       const { error: updateError } = await supabase.from('applicant_document_portals').update({ access_token_hash: createHash('sha256').update(token).digest('hex'), last_reminder_at: now, updated_at: now, reminder_count: (portal.reminder_count || 0) + 1, ...(deadline.extended ? { deadline_at: deadline.isoDate } : {}) }).eq('id', portal.id)
       if (updateError) throw new Error(updateError.message)
       sent += 1
+      if ((portal.reminder_count || 0) + 1 >= 2) {
+        try {
+          await deleteDocumentPortal(supabase, portal.id)
+          deleted += 1
+        } catch {
+          cleanupFailed.push(email)
+        }
+      }
     } catch {
       failedEmails.push(email)
     }
     if (index < list.length - 1) await wait(BETWEEN_EMAILS_DELAY_MS)
   }
-  return NextResponse.json({ sent, failedEmails, skipped: parsed.data.portalIds.length - list.length })
+  return NextResponse.json({ sent, deleted, cleanupFailed, failedEmails, skipped: parsed.data.portalIds.length - list.length })
 }
