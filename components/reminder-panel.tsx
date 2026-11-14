@@ -21,7 +21,7 @@ function ReminderList({ title, description, items, endpoint, idKey, emptyText }:
       const data = await response.json()
       if (!response.ok) { setMessage(data.error || 'Could not send reminders.'); return }
       setFailed(data.failedEmails || [])
-      setMessage(`${data.sent} reminder${data.sent === 1 ? '' : 's'} sent.${data.failedEmails?.length ? ` ${data.failedEmails.length} failed and are listed below to retry.` : ''}`)
+      setMessage(`${data.sent} reminder${data.sent === 1 ? '' : 's'} sent.${data.deleted ? ` ${data.deleted} applicant record${data.deleted === 1 ? '' : 's'} and uploaded file${data.deleted === 1 ? '' : 's'} permanently deleted after the second reminder.` : ''}${data.cleanupFailed?.length ? ` Cleanup failed for ${data.cleanupFailed.length} applicant${data.cleanupFailed.length === 1 ? '' : 's'}; select and retry.` : ''}${data.failedEmails?.length ? ` ${data.failedEmails.length} reminder${data.failedEmails.length === 1 ? '' : 's'} failed and are listed below to retry.` : ''}`)
       router.refresh()
     } catch { setMessage('Network error. Please try again.') } finally { setSending(false) }
   }
