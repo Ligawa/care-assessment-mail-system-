@@ -14,6 +14,7 @@ type OfferRow = {
   full_name: string
   email: string
   offer_status: string
+  offer_response_status: 'awaiting_response' | 'signed_received' | 'declined' | 'withdrawn'
   offer_hr_reference: string | null
   offer_job_title: string | null
   offer_basic_salary: number | null
@@ -33,7 +34,7 @@ export default async function OffersPage() {
 
   const { data } = await supabase
     .from('assessment_submissions')
-    .select('id,full_name,email,offer_status,offer_hr_reference,offer_job_title,offer_basic_salary,offer_sent_at,offer_acceptance_deadline,offer_document_deadline,offer_error')
+    .select('id,full_name,email,offer_status,offer_response_status,offer_hr_reference,offer_job_title,offer_basic_salary,offer_sent_at,offer_acceptance_deadline,offer_document_deadline,offer_error')
     .in('offer_status', ['sent', 'failed', 'generating'])
     .order('offer_sent_at', { ascending: false, nullsFirst: false })
   const offers = (data ?? []) as OfferRow[]
@@ -49,16 +50,22 @@ export default async function OffersPage() {
     await adminSupabase.from('offer_document_submissions').upsert(checklistRows, { onConflict: 'submission_id,document_key', ignoreDuplicates: true })
   }
   const { data: documentRows } = sentOffers.length
-    ? await adminSupabase.from('offer_document_submissions').select('submission_id,document_key,document_label,status').in('submission_id', sentOffers.map(offer => offer.id))
-    : { data: [] as { submission_id: string; document_key: string; document_label: string; status: string }[] }
-  const offerDocumentCandidates = sentOffers.map(offer => ({
-    id: offer.id,
-    name: offer.full_name,
-    email: offer.email,
-    role: offer.offer_job_title,
-    reference: offer.offer_hr_reference,
-    deadline: offer.offer_document_deadline ? formatDate(offer.offer_document_deadline) : null,
-  }))
+    ? await adminSupabase.from('offer_document_submissions').select('submission_id,document_key,document_label,status,reminder_count,last_reminder_at').in('submission_id', sentOffers.map(offer => offer.id))
+    : { data: [] as { submission_id: string; document_key: string; document_label: string; status: string; reminder_count: number; last_reminder_at: string | null }[] }
+  const offerDocumentCandidates = sentOffers.map(offer => {
+    const candidateDocs = (documentRows ?? []).filter(row => row.submission_id === offer.id)
+    const reminderCount = candidateDocs.reduce((maximum, row) => Math.max(maximum, row.reminder_count ?? 0), 0)
+    return {
+      id: offer.id,
+      name: offer.full_name,
+      email: offer.email,
+      role: offer.offer_job_title,
+      reference: offer.offer_hr_reference,
+      deadline: offer.offer_document_deadline ? formatDate(offer.offer_document_deadline) : null,
+      responseStatus: offer.offer_response_status,
+      reminderCount,
+    }
+  })
 
   const { data: completedInvites } = await supabase.from('assessment_invites').select('submission_id').eq('status', 'completed').not('submission_id', 'is', null)
   const offeredIds = new Set(offers.map(offer => offer.id))
@@ -80,6 +87,8 @@ export default async function OffersPage() {
           <div className="rounded-2xl border border-[#ded8ca] bg-white p-5"><dt className="text-sm text-[#455c7d]">Offers sent</dt><dd className="mt-1 text-3xl font-semibold text-[#101b30]">{sent}</dd></div>
           <div className="rounded-2xl border border-[#ded8ca] bg-white p-5"><dt className="text-sm text-[#455c7d]">Needs attention</dt><dd className="mt-1 text-3xl font-semibold text-[#101b30]">{offers.length - sent}</dd></div>
         </dl>
+
+        <OfferDocumentTracker candidates={offerDocumentCandidates} documents={(documentRows ?? []) as { submission_id: string; document_key: string; document_label: string; status: 'pending' | 'received' | 'not_applicable'; reminder_count: number; last_reminder_at: string | null }[]} />
 
         <section className="mt-8 rounded-3xl border border-[#ded8ca] bg-white p-5">
           <h2 className="text-xl font-semibold text-[#101b30]">Ready for an offer</h2>
@@ -122,7 +131,6 @@ export default async function OffersPage() {
           )}
         </section>
 
-        <OfferDocumentTracker candidates={offerDocumentCandidates} documents={(documentRows ?? []) as { submission_id: string; document_key: string; document_label: string; status: 'pending' | 'received' | 'not_applicable' }[]} />
       </main>
     </div>
   )
