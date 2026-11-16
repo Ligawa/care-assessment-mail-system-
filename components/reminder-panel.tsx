@@ -40,13 +40,14 @@ function ReminderList({ title, description, items, endpoint, idKey, emptyText }:
   </div>
 }
 
-export default function ReminderPanel({ documents, interviews }: { documents: Item[]; interviews: Item[] }) {
+export default function ReminderPanel({ documents, interviews, showInterviews = true, title = 'Send reminders', description = 'Nudge applicants who have not finished. Emails are sent at spaced intervals; any that fail stay in the retry box. Overdue deadlines are extended to the next day.' }: { documents: Item[]; interviews: Item[]; showInterviews?: boolean; title?: string; description?: string }) {
   return <section className="mt-6 rounded-3xl border border-[#ded8ca] bg-white p-6">
-    <h2 className="text-xl font-semibold text-[#101b30]">Send reminders</h2>
-    <p className="mt-1 text-sm text-[#455c7d]">Nudge applicants who have not finished. Emails are sent at spaced intervals; any that fail stay in the retry box. Overdue deadlines are extended to the next day.</p>
-    <div className="mt-5 grid gap-4 lg:grid-cols-2">
+    <h2 className="text-xl font-semibold text-[#101b30]">{title}</h2>
+    <p className="mt-1 text-sm leading-6 text-[#455c7d]">{description}</p>
+    <div className={`mt-5 grid gap-4 ${showInterviews ? 'lg:grid-cols-2' : ''}`}>
       <ReminderList title="Document reminders" description="Applicants who have not submitted, or have only partially submitted, their documents." items={documents} endpoint="/api/admin/documents/remind" idKey="portalIds" emptyText="Every applicant has submitted their documents." />
-      <ReminderList title="Interview reminders" description="Candidates who were invited to the AI-powered interview but have not completed it." items={interviews} endpoint="/api/admin/interviews/remind" idKey="sessionIds" emptyText="No interviews are awaiting completion." />
+      {showInterviews && <ReminderList title="Interview reminders" description="Candidates who were invited to the AI-powered interview but have not completed it." items={interviews} endpoint="/api/admin/interviews/remind" idKey="sessionIds" emptyText="No interviews are awaiting completion." />}
     </div>
+    <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950" role="note">Important: after the second successful document reminder, the applicant&apos;s document request and uploaded files are permanently deleted.</p>
   </section>
 }
