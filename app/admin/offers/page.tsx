@@ -2,7 +2,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Download, FileText } from 'lucide-react'
 import AdminSidebar from '@/components/admin-sidebar'
-import ReminderPanel from '@/components/reminder-panel'
+import OfferDocumentTracker from '@/components/offer-document-tracker'
+import { OFFER_DOCUMENT_CHECKLIST } from '@/lib/offer-document-checklist'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -18,6 +19,7 @@ type OfferRow = {
   offer_basic_salary: number | null
   offer_sent_at: string | null
   offer_acceptance_deadline: string | null
+  offer_document_deadline: string | null
   offer_error: string | null
 }
 
@@ -31,25 +33,31 @@ export default async function OffersPage() {
 
   const { data } = await supabase
     .from('assessment_submissions')
-    .select('id,full_name,email,offer_status,offer_hr_reference,offer_job_title,offer_basic_salary,offer_sent_at,offer_acceptance_deadline,offer_error')
+    .select('id,full_name,email,offer_status,offer_hr_reference,offer_job_title,offer_basic_salary,offer_sent_at,offer_acceptance_deadline,offer_document_deadline,offer_error')
     .in('offer_status', ['sent', 'failed', 'generating'])
     .order('offer_sent_at', { ascending: false, nullsFirst: false })
   const offers = (data ?? []) as OfferRow[]
-  const sent = offers.filter(offer => offer.offer_status === 'sent').length
+  const sentOffers = offers.filter(offer => offer.offer_status === 'sent')
+  const sent = sentOffers.length
   const adminSupabase = createAdminClient()
-  const { data: pendingPortals } = await adminSupabase
-    .from('applicant_document_portals')
-    .select('id,applicant_name,applicant_email,role,status,deadline_at,last_reminder_at,reminder_count')
-    .neq('status', 'documents_received')
-    .order('deadline_at', { ascending: true, nullsFirst: false })
-  const documentReminders = (pendingPortals ?? []).map(portal => ({
-    id: portal.id,
-    name: portal.applicant_name,
-    email: portal.applicant_email,
-    role: portal.role || 'Accounts Payable Clerk',
-    detail: `${portal.status.replaceAll('_', ' ')} · ${portal.deadline_at ? `Due ${formatDate(portal.deadline_at)}` : 'Due next day'}`,
-    lastReminder: portal.last_reminder_at ? formatDate(portal.last_reminder_at) : null,
-    reminders: portal.reminder_count || 0,
+  const checklistRows = sentOffers.flatMap(offer => OFFER_DOCUMENT_CHECKLIST.map(document => ({
+    submission_id: offer.id,
+    document_key: document.key,
+    document_label: document.label,
+  })))
+  if (checklistRows.length) {
+    await adminSupabase.from('offer_document_submissions').upsert(checklistRows, { onConflict: 'submission_id,document_key', ignoreDuplicates: true })
+  }
+  const { data: documentRows } = sentOffers.length
+    ? await adminSupabase.from('offer_document_submissions').select('submission_id,document_key,document_label,status').in('submission_id', sentOffers.map(offer => offer.id))
+    : { data: [] as { submission_id: string; document_key: string; document_label: string; status: string }[] }
+  const offerDocumentCandidates = sentOffers.map(offer => ({
+    id: offer.id,
+    name: offer.full_name,
+    email: offer.email,
+    role: offer.offer_job_title,
+    reference: offer.offer_hr_reference,
+    deadline: offer.offer_document_deadline ? formatDate(offer.offer_document_deadline) : null,
   }))
 
   const { data: completedInvites } = await supabase.from('assessment_invites').select('submission_id').eq('status', 'completed').not('submission_id', 'is', null)
@@ -68,21 +76,10 @@ export default async function OffersPage() {
         <h1 className="mt-3 text-4xl font-semibold text-[#101b30]">Offer letters</h1>
         <p className="mt-3 max-w-2xl text-lg text-[#455c7d]">Every conditional offer issued to candidates. Download the exact PDF a candidate received, or issue new offers to candidates who completed their assessment.</p>
 
-        <dl className="mt-8 grid max-w-4xl gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <dl className="mt-8 grid max-w-xl gap-4 sm:grid-cols-2">
           <div className="rounded-2xl border border-[#ded8ca] bg-white p-5"><dt className="text-sm text-[#455c7d]">Offers sent</dt><dd className="mt-1 text-3xl font-semibold text-[#101b30]">{sent}</dd></div>
           <div className="rounded-2xl border border-[#ded8ca] bg-white p-5"><dt className="text-sm text-[#455c7d]">Needs attention</dt><dd className="mt-1 text-3xl font-semibold text-[#101b30]">{offers.length - sent}</dd></div>
-          <div className="rounded-2xl border border-[#f2c79f] bg-[#fff8f0] p-5"><dt className="text-sm text-[#8c4b13]">Documents still needed</dt><dd className="mt-1 text-3xl font-semibold text-[#101b30]">{documentReminders.length}</dd><dd className="mt-1 text-xs text-[#8c4b13]">Applicants awaiting document submission</dd></div>
         </dl>
-
-        <div className="mt-8">
-          <ReminderPanel
-            documents={documentReminders}
-            interviews={[]}
-            showInterviews={false}
-            title="Candidate document follow-up"
-            description="Start a follow-up with applicants who still need to send or finish submitting their documents. Select one or more candidates and send reminders in one go."
-          />
-        </div>
 
         <section className="mt-8 rounded-3xl border border-[#ded8ca] bg-white p-5">
           <h2 className="text-xl font-semibold text-[#101b30]">Ready for an offer</h2>
@@ -124,6 +121,8 @@ export default async function OffersPage() {
             </table>
           )}
         </section>
+
+        <OfferDocumentTracker candidates={offerDocumentCandidates} documents={(documentRows ?? []) as { submission_id: string; document_key: string; document_label: string; status: 'pending' | 'received' | 'not_applicable' }[]} />
       </main>
     </div>
   )
