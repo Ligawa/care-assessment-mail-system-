@@ -33,7 +33,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const admin = createAdminClient()
   const { data: candidate, error: candidateError } = await admin
     .from('assessment_submissions')
-    .select('id,offer_status')
+    .select('id,offer_status,offer_response_status')
     .eq('id', id)
     .eq('offer_status', 'sent')
     .maybeSingle()
@@ -50,5 +50,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }, { onConflict: 'submission_id,document_key' })
 
   if (error) return NextResponse.json({ error: 'Could not save the offer document status.' }, { status: 500 })
-  return NextResponse.json({ status })
+
+  let responseStatus = candidate.offer_response_status
+  if (document.key === 'signed_offer_letter' && !['declined', 'withdrawn'].includes(responseStatus ?? '')) {
+    responseStatus = status === 'received' ? 'signed_received' : 'awaiting_response'
+    const { error: responseError } = await admin.from('assessment_submissions').update({ offer_response_status: responseStatus }).eq('id', id)
+    if (responseError) return NextResponse.json({ error: 'Document status saved, but offer response status could not be synchronized.' }, { status: 500 })
+  }
+
+  return NextResponse.json({ status, responseStatus })
 }
