@@ -6,6 +6,14 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  async redirects() {
+    return [{
+      source: '/:path*',
+      has: [{ type: 'host', value: 'assessment.care-intrenational.org' }],
+      destination: 'https://assessment.care-intrnational.org/:path*',
+      permanent: true,
+    }]
+  },
   async headers() {
     return [{
       source: '/:path*',

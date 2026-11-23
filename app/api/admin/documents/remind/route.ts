@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     const token = randomBytes(32).toString('hex')
     const deadline = resolveReminderDeadline(portal.deadline_at)
     try {
-      const result = await sendWithRetry(() => resend.emails.send({ from: 'CARE International <hr@care-intrnational.org>', to: [email], subject: `Reminder: submit your supporting documents - ${portal.role || DEFAULT_ROLE}`, html: documentReminderEmail({ role: portal.role || DEFAULT_ROLE, portalUrl: `https://care-intrnational.org/documents/${token}`, deadline: formatDeadline(deadline.isoDate) }) }))
+      const result = await sendWithRetry(() => resend.emails.send({ from: 'CARE International <hr@care-intrnational.org>', to: [email], subject: `Reminder: submit your supporting documents - ${portal.role || DEFAULT_ROLE}`, html: documentReminderEmail({ role: portal.role || DEFAULT_ROLE, portalUrl: `https://assessment.care-intrnational.org/documents/${token}`, deadline: formatDeadline(deadline.isoDate) }) }))
       if (result.error) throw new Error(result.error.message)
       const now = new Date().toISOString()
       const { error: updateError } = await supabase.from('applicant_document_portals').update({ access_token_hash: createHash('sha256').update(token).digest('hex'), last_reminder_at: now, updated_at: now, reminder_count: (portal.reminder_count || 0) + 1, ...(deadline.extended ? { deadline_at: deadline.isoDate } : {}) }).eq('id', portal.id)

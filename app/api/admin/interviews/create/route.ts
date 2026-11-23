@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   const deadline = new Date(); deadline.setDate(deadline.getDate() + 1)
   const deadlineAt = deadline.toISOString().slice(0, 10)
   const deadlineLabel = deadline.toLocaleDateString('en-GB')
-  const origin = 'https://care-intrnational.org'
+  const origin = 'https://assessment.care-intrnational.org'
   const rows = parsed.data.emails.map(email => ({ access_code: `INT-${crypto.randomUUID().slice(0, 10).toUpperCase()}`, candidate_name: null, candidate_email: email.toLowerCase(), role: parsed.data.role, status: 'invited', decision_status: 'pending', transcript: [], assessment: null, completed_at: null, deadline_at: deadlineAt }))
   const { data: created, error } = await supabase.from('interview_sessions').insert(rows).select('access_code,candidate_email')
   if (error || !created) return NextResponse.json({ error: error?.message || 'Could not create interview invitations.' }, { status: 500 })
