@@ -10,7 +10,7 @@ const nextConfig = {
     return [{
       source: '/:path*',
       has: [{ type: 'host', value: 'assessment.care-intrenational.org' }],
-      destination: 'https://care-intrnational.org/:path*',
+      destination: 'https://assessment.care-intrnational.org/:path*',
       permanent: true,
     }]
   },

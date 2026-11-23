@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     const deadline = resolveReminderDeadline(item.deadline_at)
     const role = item.role || 'Accounts Payable Clerk'
     try {
-      const result = await sendWithRetry(() => resend.emails.send({ from: 'CARE International <hr@care-intrnational.org>', to: [email], subject: `Reminder: complete your AI-powered interview - ${role}`, html: interviewReminderEmail({ role, url: `https://care-intrnational.org/interview/${item.access_code}`, deadline: formatDeadline(deadline.isoDate) }) }))
+      const result = await sendWithRetry(() => resend.emails.send({ from: 'CARE International <hr@care-intrnational.org>', to: [email], subject: `Reminder: complete your AI-powered interview - ${role}`, html: interviewReminderEmail({ role, url: `https://assessment.care-intrnational.org/interview/${item.access_code}`, deadline: formatDeadline(deadline.isoDate) }) }))
       if (result.error) throw new Error(result.error.message)
       const { error: updateError } = await supabase.from('interview_sessions').update({ last_reminder_at: new Date().toISOString(), reminder_count: (item.reminder_count || 0) + 1, ...(deadline.extended ? { deadline_at: deadline.isoDate } : {}) }).eq('id', item.id)
       if (updateError) throw new Error(updateError.message)
