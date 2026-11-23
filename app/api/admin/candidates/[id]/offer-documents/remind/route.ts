@@ -50,7 +50,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;color:#25344b;line-height:1.6"><p>Dear ${greeting},</p><p>This is a reminder regarding your conditional offer for <strong>${safeRole}</strong> (${safeReference}). We have not yet confirmed receipt of the following items:</p><ul>${pendingHtml}</ul><p>${escapeHtml(deadline)} Please reply to the original offer email with the signed offer letter and document copies or translations.</p><p>Kind regards,<br>CARE International</p></div>`
 
   const result = await new Resend(process.env.RESEND_API_KEY).emails.send({
-    from: 'CARE International <careers@care-intrenational.org>',
+    from: 'CARE International <hr@care-intrnational.org>',
     to: [candidate.email],
     subject: `Reminder: outstanding offer documents | ${reference}`,
     text,

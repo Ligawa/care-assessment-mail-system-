@@ -83,7 +83,7 @@ ${HR_CONTACT}
 CARE International`
 
   const sent = await resend.emails.send({
-    from: 'CARE International <careers@care-intrenational.org>',
+    from: 'CARE International <hr@care-intrnational.org>',
     to: [candidate.email],
     subject: `Conditional Offer of Employment | ${hrReference}`,
     text,

@@ -59,7 +59,7 @@ export async function sendAssessmentInvites(admin: SupabaseClient, assessment: A
     }
     try {
       const url = `${ASSESSMENT_ORIGIN}/assessment/${assessment.access_code}?invite=${invite.token}`
-      const result = await sendWithRetry(() => resend.emails.send({ from: 'CARE International <careers@care-intrenational.org>', to: [email], subject: `Final screening: skills assessment - ${role}`, html: assessmentInviteEmail({ role, assessmentTitle: assessment.title, url, deadline: deadlineLabel, durationMinutes: assessment.duration_minutes, questionCount: assessment.question_count }) }))
+      const result = await sendWithRetry(() => resend.emails.send({ from: 'CARE International <hr@care-intrnational.org>', to: [email], subject: `Final screening: skills assessment - ${role}`, html: assessmentInviteEmail({ role, assessmentTitle: assessment.title, url, deadline: deadlineLabel, durationMinutes: assessment.duration_minutes, questionCount: assessment.question_count }) }))
       if (result.error) throw new Error(result.error.message)
       sent += 1
     } catch {

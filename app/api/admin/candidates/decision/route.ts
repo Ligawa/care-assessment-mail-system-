@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   const html = `<p>Dear ${candidate.full_name},</p><p>${passed ? 'Thank you for completing your assessment. We are pleased to let you know that you have passed this stage of the process. Our team will be in touch with next steps.' : 'Thank you for completing your assessment and for your interest in CARE International. After careful review, we will not be progressing your application at this stage. We appreciate the time you invested and wish you well.'}</p><p>Kind regards,<br />CARE International</p>`
 
   try {
-    const { error: sendError } = await resend.emails.send({ from: 'CARE International <careers@care-intrenational.org>', to: [candidate.email.trim()], subject, html, text })
+    const { error: sendError } = await resend.emails.send({ from: 'CARE International <hr@care-intrnational.org>', to: [candidate.email.trim()], subject, html, text })
     if (sendError) throw new Error(sendError.message)
     const { error: sentUpdateError } = await supabase.from('assessment_submissions').update({ notification_status: 'sent', notification_error: null, notified_at: new Date().toISOString() }).eq('id', candidate.id)
     if (sentUpdateError) return NextResponse.json({ error: `Email sent, but status could not be saved: ${sentUpdateError.message}` }, { status: 500 })
