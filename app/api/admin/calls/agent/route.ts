@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { CALL_AGENT_FIRST_MESSAGE, CALL_AGENT_GUARDRAILS, CALL_AGENT_ID, CALL_AGENT_NAME, CALL_GUARDRAILS_MARKER } from '@/lib/call-agent-guardrails'
+import { CALL_AGENT_FIRST_MESSAGE, CALL_AGENT_GUARDRAILS, CALL_AGENT_ID, CALL_AGENT_NAME, CALL_GUARDRAILS_MARKER, CALL_RETENTION_DAYS } from '@/lib/call-agent-guardrails'
 
 async function staffSignedIn() {
   const session = await createClient()
@@ -31,21 +31,24 @@ export async function POST() {
   if (!currentResponse.ok || !currentPrompt || typeof currentPrompt.prompt !== 'string') return NextResponse.json({ error: 'The agent prompt could not be read safely.' }, { status: 502 })
   const currentAgent = current.conversation_config?.agent
   const prompt = currentPrompt.prompt.includes(CALL_GUARDRAILS_MARKER) ? currentPrompt.prompt : `${currentPrompt.prompt.trim()}\n\n${CALL_AGENT_GUARDRAILS}`
-  if (prompt !== currentPrompt.prompt || currentAgent.first_message !== CALL_AGENT_FIRST_MESSAGE) {
-    const updateResponse = await fetch(url, {
-      method: 'PATCH',
-      headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        conversation_config: {
-          agent: { ...currentAgent, first_message: CALL_AGENT_FIRST_MESSAGE, prompt: { ...currentPrompt, prompt } },
-        },
-      }),
-      cache: 'no-store',
-    })
-    if (!updateResponse.ok) {
-      const error = await updateResponse.json().catch(() => ({}))
-      return NextResponse.json({ error: error.detail?.[0]?.msg || error.detail || 'Unable to update the ElevenLabs agent.' }, { status: 502 })
-    }
+  const privacy = current.platform_settings?.privacy ?? {}
+  const updateResponse = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      conversation_config: {
+        agent: { ...currentAgent, first_message: CALL_AGENT_FIRST_MESSAGE, prompt: { ...currentPrompt, prompt } },
+      },
+      platform_settings: {
+        ...current.platform_settings,
+        privacy: { ...privacy, retention_days: CALL_RETENTION_DAYS, apply_to_existing_conversations: true },
+      },
+    }),
+    cache: 'no-store',
+  })
+  if (!updateResponse.ok) {
+    const error = await updateResponse.json().catch(() => ({}))
+    return NextResponse.json({ error: error.detail?.[0]?.msg || error.detail || 'Unable to update the ElevenLabs agent and retention policy.' }, { status: 502 })
   }
-  return NextResponse.json({ guardrailsApplied: true, message: 'AI interview guardrails are active.' })
+  return NextResponse.json({ guardrailsApplied: true, retentionDays: CALL_RETENTION_DAYS, message: `AI interview guardrails are active and call retention is set to ${CALL_RETENTION_DAYS} days.` })
 }
