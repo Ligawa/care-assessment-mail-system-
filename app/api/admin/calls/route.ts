@@ -74,8 +74,8 @@ export async function POST(request: Request) {
   const agent = await agentResponse.json()
   const agentConfig = agent.conversation_config?.agent
   const prompt = agentConfig?.prompt?.prompt
-  if (!agentResponse.ok || typeof prompt !== 'string' || !prompt.includes(CALL_GUARDRAILS_MARKER) || agentConfig?.first_message !== CALL_AGENT_FIRST_MESSAGE) {
-    return NextResponse.json({ error: 'Apply the required AI interview guardrails before placing a call.' }, { status: 409 })
+  if (!agentResponse.ok || typeof prompt !== 'string' || !prompt.includes(CALL_GUARDRAILS_MARKER) || agentConfig?.first_message !== CALL_AGENT_FIRST_MESSAGE || agent.platform_settings?.privacy?.record_voice !== true) {
+    return NextResponse.json({ error: 'Apply the required AI interview guardrails and recording settings before placing a call.' }, { status: 409 })
   }
 
   const input = parsed.data

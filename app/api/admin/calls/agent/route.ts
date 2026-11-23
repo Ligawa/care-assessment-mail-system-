@@ -17,8 +17,9 @@ export async function GET() {
   if (!response.ok) return NextResponse.json({ error: 'Unable to check the ElevenLabs agent.' }, { status: 502 })
   const agentConfig = agent.conversation_config?.agent
   const prompt = agentConfig?.prompt?.prompt
-  const guardrailsApplied = typeof prompt === 'string' && prompt.includes(CALL_GUARDRAILS_MARKER) && agentConfig?.first_message === CALL_AGENT_FIRST_MESSAGE
-  return NextResponse.json({ name: agent.name || CALL_AGENT_NAME, guardrailsApplied, phoneNumber: '+15722124506' })
+  const recordingEnabled = agent.platform_settings?.privacy?.record_voice === true
+  const guardrailsApplied = typeof prompt === 'string' && prompt.includes(CALL_GUARDRAILS_MARKER) && agentConfig?.first_message === CALL_AGENT_FIRST_MESSAGE && recordingEnabled
+  return NextResponse.json({ name: agent.name || CALL_AGENT_NAME, guardrailsApplied, recordingEnabled, phoneNumber: '+15722124506' })
 }
 
 export async function POST() {
@@ -30,7 +31,9 @@ export async function POST() {
   const currentPrompt = current.conversation_config?.agent?.prompt
   if (!currentResponse.ok || !currentPrompt || typeof currentPrompt.prompt !== 'string') return NextResponse.json({ error: 'The agent prompt could not be read safely.' }, { status: 502 })
   const currentAgent = current.conversation_config?.agent
-  const prompt = currentPrompt.prompt.includes(CALL_GUARDRAILS_MARKER) ? currentPrompt.prompt : `${currentPrompt.prompt.trim()}\n\n${CALL_AGENT_GUARDRAILS}`
+  const markerIndex = currentPrompt.prompt.indexOf(CALL_GUARDRAILS_MARKER)
+  const basePrompt = markerIndex === -1 ? currentPrompt.prompt.trim() : currentPrompt.prompt.slice(0, markerIndex).trimEnd()
+  const prompt = `${basePrompt}\n\n${CALL_AGENT_GUARDRAILS}`
   const privacy = current.platform_settings?.privacy ?? {}
   const updateResponse = await fetch(url, {
     method: 'PATCH',
@@ -41,7 +44,7 @@ export async function POST() {
       },
       platform_settings: {
         ...current.platform_settings,
-        privacy: { ...privacy, retention_days: CALL_RETENTION_DAYS, apply_to_existing_conversations: true },
+        privacy: { ...privacy, record_voice: true, retention_days: CALL_RETENTION_DAYS, apply_to_existing_conversations: true },
       },
     }),
     cache: 'no-store',
@@ -50,5 +53,5 @@ export async function POST() {
     const error = await updateResponse.json().catch(() => ({}))
     return NextResponse.json({ error: error.detail?.[0]?.msg || error.detail || 'Unable to update the ElevenLabs agent and retention policy.' }, { status: 502 })
   }
-  return NextResponse.json({ guardrailsApplied: true, retentionDays: CALL_RETENTION_DAYS, message: `AI interview guardrails are active and call retention is set to ${CALL_RETENTION_DAYS} days.` })
+  return NextResponse.json({ guardrailsApplied: true, recordingEnabled: true, retentionDays: CALL_RETENTION_DAYS, message: `AI interview guardrails are active, call recording is enabled, and call retention is set to ${CALL_RETENTION_DAYS} days.` })
 }

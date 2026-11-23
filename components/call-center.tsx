@@ -26,9 +26,11 @@ type CallRecord = {
 
 type Candidate = { id: string; candidate_name: string | null; candidate_email: string | null; role: string; status: string; created_at: string }
 
-export default function CallCenter({ initialCalls, candidates, initialGuardrailsApplied, providerConfigured, retentionDays, recordingEnabled }: { initialCalls: CallRecord[]; candidates: Candidate[]; initialGuardrailsApplied: boolean; providerConfigured: boolean; retentionDays: number | null; recordingEnabled: boolean }) {
+export default function CallCenter({ initialCalls, candidates, initialGuardrailsApplied, providerConfigured, retentionDays: initialRetentionDays, recordingEnabled: initialRecordingEnabled }: { initialCalls: CallRecord[]; candidates: Candidate[]; initialGuardrailsApplied: boolean; providerConfigured: boolean; retentionDays: number | null; recordingEnabled: boolean }) {
   const [calls, setCalls] = useState(initialCalls)
   const [guardrailsApplied, setGuardrailsApplied] = useState(initialGuardrailsApplied)
+  const [retentionDays, setRetentionDays] = useState(initialRetentionDays)
+  const [recordingEnabled, setRecordingEnabled] = useState(initialRecordingEnabled)
   const [selectedCandidateId, setSelectedCandidateId] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
   const [consentConfirmed, setConsentConfirmed] = useState(false)
@@ -66,6 +68,8 @@ export default function CallCenter({ initialCalls, candidates, initialGuardrails
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Unable to configure the agent.')
       setGuardrailsApplied(true)
+      setRecordingEnabled(data.recordingEnabled === true)
+      setRetentionDays(typeof data.retentionDays === 'number' ? data.retentionDays : null)
       setNotice({ message: data.message || 'Agent guardrails applied.', error: false })
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : 'Unable to configure the agent.', error: true })
@@ -137,6 +141,7 @@ export default function CallCenter({ initialCalls, candidates, initialGuardrails
     <div className="mx-auto max-w-7xl px-5 py-7 lg:px-8">
       {notice && <div role={notice.error ? 'alert' : 'status'} className={`mb-6 rounded-2xl border px-4 py-3 text-sm ${notice.error ? 'border-destructive/30 bg-destructive/5 text-destructive' : 'border-primary/20 bg-primary/5 text-foreground'}`}>{notice.message}</div>}
       {providerError && <div role="alert" className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">{providerError}</div>}
+      {providerConfigured && !recordingEnabled && <div role="alert" className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950"><strong>Call recording is off:</strong> Apply the agent guardrails below to enable recording and the 90-day retention policy for inbound and outbound calls.</div>}
       {recordingEnabled && retentionDays !== CALL_RETENTION_DAYS && <div role="alert" className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950"><strong>Call-data retention:</strong> The approved 90-day retention policy has not been confirmed in ElevenLabs yet. Apply the agent guardrails below before placing calls.</div>}
       {recordingEnabled && retentionDays === 90 && <div role="note" className="mb-6 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm leading-6 text-foreground"><strong>Call-data retention:</strong> Recordings and transcripts are configured for automatic deletion after 90 days. Call-log records are also deleted daily after 90 days.</div>}
 

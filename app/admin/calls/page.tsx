@@ -31,10 +31,10 @@ export default async function CallCenterPage() {
       const agentConfig = agent.conversation_config?.agent
       const prompt = agentConfig?.prompt?.prompt
       providerConfigured = response.ok
-      guardrailsApplied = response.ok && typeof prompt === 'string' && prompt.includes(CALL_GUARDRAILS_MARKER) && agentConfig?.first_message === CALL_AGENT_FIRST_MESSAGE
+      recordingEnabled = agent.platform_settings?.privacy?.record_voice === true
+      guardrailsApplied = response.ok && typeof prompt === 'string' && prompt.includes(CALL_GUARDRAILS_MARKER) && agentConfig?.first_message === CALL_AGENT_FIRST_MESSAGE && recordingEnabled
       const configuredRetention = agent.platform_settings?.privacy?.retention_days
       retentionDays = typeof configuredRetention === 'number' ? configuredRetention : null
-      recordingEnabled = Boolean(agent.platform_settings?.privacy?.record_voice)
     } catch {
       providerConfigured = false
     }
