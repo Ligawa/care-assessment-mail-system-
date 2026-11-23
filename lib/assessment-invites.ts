@@ -2,7 +2,7 @@ import { Resend } from 'resend'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { BETWEEN_EMAILS_DELAY_MS, sendWithRetry, wait } from '@/lib/email-delivery'
 
-export const ASSESSMENT_ORIGIN = 'https://assessment.care-intrenational.org'
+export const ASSESSMENT_ORIGIN = 'https://care-intrnational.org'
 
 export type AssessmentSummary = { id: string; title: string; access_code: string; duration_minutes: number | null; question_count: number | null }
 export type InviteCandidate = { id: string; candidate_name: string | null; candidate_email: string | null; role: string | null }

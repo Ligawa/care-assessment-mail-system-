@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       let recipientText = text
       if (html.includes('{{portal_url}}')) {
         const token = randomBytes(32).toString('hex')
-        const portalUrl = `https://assessment.care-intrenational.org/documents/${token}`
+        const portalUrl = `https://care-intrnational.org/documents/${token}`
         const admin = createAdminClient()
         await admin.from('applicant_document_portals').insert({ applicant_name: 'Applicant', applicant_email: to, role: 'the advertised position', access_token_hash: createHash('sha256').update(token).digest('hex'), requested_documents: [] })
         recipientHtml = html.replaceAll('{{portal_url}}', portalUrl)
