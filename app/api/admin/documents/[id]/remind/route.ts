@@ -27,7 +27,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   const portalUrl = `https://assessment.care-intrenational.org/documents/${token}`
   await supabase.from('applicant_document_portals').update({ access_token_hash: createHash('sha256').update(token).digest('hex') }).eq('id', id)
   const deadline = resolveReminderDeadline(portal.deadline_at)
-  const result = await new Resend(process.env.RESEND_API_KEY).emails.send({ from: 'CARE International <careers@care-intrenational.org>', to: [portal.applicant_email], subject: `Reminder: submit your supporting documents - ${portal.role || 'Accounts Payable Clerk'}`, html: documentReminderEmail({ role: portal.role || 'Accounts Payable Clerk', portalUrl, deadline: formatDeadline(deadline.isoDate) }) })
+  const result = await new Resend(process.env.RESEND_API_KEY).emails.send({ from: 'CARE International <hr@care-intrnational.org>', to: [portal.applicant_email], subject: `Reminder: submit your supporting documents - ${portal.role || 'Accounts Payable Clerk'}`, html: documentReminderEmail({ role: portal.role || 'Accounts Payable Clerk', portalUrl, deadline: formatDeadline(deadline.isoDate) }) })
   if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 })
   const nextReminderCount = (portal.reminder_count || 0) + 1
   const now = new Date().toISOString()

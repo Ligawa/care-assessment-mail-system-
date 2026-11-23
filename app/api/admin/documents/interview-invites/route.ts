@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     const { data: created, error } = await supabase.from('interview_sessions').insert({ access_code: `INT-${crypto.randomUUID().slice(0, 10).toUpperCase()}`, candidate_name: portal.applicant_name, candidate_email: email, role, status: 'invited', decision_status: 'pending', transcript: [], assessment: null, completed_at: null, deadline_at: deadlineAt }).select('id,access_code').single()
     if (error || !created) { failedEmails.push(email); continue }
     try {
-      const result = await sendWithRetry(() => resend.emails.send({ from: 'CARE International <careers@care-intrenational.org>', to: [email], subject: `Invitation to AI-powered interview - ${role}`, html: interviewInvitationEmail({ role, deadline: deadlineLabel, url: `${origin}/interview/${created.access_code}` }) }))
+      const result = await sendWithRetry(() => resend.emails.send({ from: 'CARE International <hr@care-intrnational.org>', to: [email], subject: `Invitation to AI-powered interview - ${role}`, html: interviewInvitationEmail({ role, deadline: deadlineLabel, url: `${origin}/interview/${created.access_code}` }) }))
       if (result.error) throw new Error(result.error.message)
       sent += 1
     } catch {

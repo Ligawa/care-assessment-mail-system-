@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { CALL_RETENTION_DAYS } from '@/lib/call-agent-guardrails'
 import { ArrowDownLeft, ArrowUpRight, Check, ChevronDown, Clock3, Headphones, LoaderCircle, MessageSquareText, Phone, RefreshCw, ShieldCheck } from 'lucide-react'
 
 type CallRecord = {
@@ -136,7 +137,8 @@ export default function CallCenter({ initialCalls, candidates, initialGuardrails
     <div className="mx-auto max-w-7xl px-5 py-7 lg:px-8">
       {notice && <div role={notice.error ? 'alert' : 'status'} className={`mb-6 rounded-2xl border px-4 py-3 text-sm ${notice.error ? 'border-destructive/30 bg-destructive/5 text-destructive' : 'border-primary/20 bg-primary/5 text-foreground'}`}>{notice.message}</div>}
       {providerError && <div role="alert" className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">{providerError}</div>}
-      {recordingEnabled && retentionDays === -1 && <div role="note" className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950"><strong>Call-data retention:</strong> ElevenLabs and this call log currently have no automatic expiry for call recordings and transcripts. Confirm your organisation&apos;s retention policy and candidate notice before using live calls.</div>}
+      {recordingEnabled && retentionDays !== CALL_RETENTION_DAYS && <div role="alert" className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950"><strong>Call-data retention:</strong> The approved 90-day retention policy has not been confirmed in ElevenLabs yet. Apply the agent guardrails below before placing calls.</div>}
+      {recordingEnabled && retentionDays === 90 && <div role="note" className="mb-6 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm leading-6 text-foreground"><strong>Call-data retention:</strong> Recordings and transcripts are configured for automatic deletion after 90 days. Call-log records are also deleted daily after 90 days.</div>}
 
       <section aria-label="Call activity overview" className="grid gap-4 sm:grid-cols-3">
         <Metric label="Calls on record" value={calls.length} icon={<Phone aria-hidden="true" />} />
@@ -177,7 +179,7 @@ export default function CallCenter({ initialCalls, candidates, initialGuardrails
             <label className="mt-4 flex flex-col gap-2 text-sm font-semibold" htmlFor="phone">Phone number <span className="font-normal text-muted-foreground">Digits only, including country code</span>
               <input id="phone" type="tel" required value={phoneNumber} onChange={event => setPhoneNumber(event.target.value)} placeholder="+15551234567" autoComplete="tel" pattern="\\+[1-9][0-9]{7,14}" title="Enter a valid international number starting with +" className="h-11 rounded-xl border border-input bg-background px-3 font-normal" />
             </label>
-            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-border p-3 text-xs leading-5 text-muted-foreground"><input type="checkbox" checked={consentConfirmed} onChange={event => setConsentConfirmed(event.target.checked)} className="mt-0.5 size-4 shrink-0 accent-primary" /><span>I confirm the candidate has agreed to an AI-led, recorded call and the use of their responses for recruitment review.</span></label>
+            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-border p-3 text-xs leading-5 text-muted-foreground"><input type="checkbox" checked={consentConfirmed} onChange={event => setConsentConfirmed(event.target.checked)} className="mt-0.5 size-4 shrink-0 accent-primary" /><span>I confirm the candidate has agreed to an AI-led, recorded call, with recordings and transcripts retained for up to 90 days for recruitment review.</span></label>
             <button type="submit" disabled={busy || !consentConfirmed || !guardrailsApplied || !providerConfigured} className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">{busy ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> : <Phone aria-hidden="true" className="size-4" />}{busy ? 'Connecting…' : 'Place outbound call'}</button>
             {!providerConfigured && <p className="mt-3 text-xs text-destructive">ElevenLabs is not configured. Contact your project administrator.</p>}
             {!guardrailsApplied && providerConfigured && <p className="mt-3 text-xs text-amber-800">Apply agent guardrails below before placing calls.</p>}

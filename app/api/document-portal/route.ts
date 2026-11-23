@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
   const html = documentRequestEmail({ applicantName, role: emailRole, portalUrl, deadline: new Date(`${deadlineAt}T00:00:00`).toLocaleDateString('en-GB') })
   await supabase.from('email_templates').upsert({ slug: 'document-request', name: 'Applicant document request', subject: `Request for supporting documents - ${role}`, html, updated_at: new Date().toISOString() }, { onConflict: 'slug' })
   let emailSent = false
-  if (process.env.RESEND_API_KEY) { const result = await new Resend(process.env.RESEND_API_KEY).emails.send({ from: 'CARE International <careers@care-intrenational.org>', to: [body.applicantEmail.trim().toLowerCase()], subject: `Request for supporting documents - ${role}`, html }); emailSent = !result.error }
+  if (process.env.RESEND_API_KEY) { const result = await new Resend(process.env.RESEND_API_KEY).emails.send({ from: 'CARE International <hr@care-intrnational.org>', to: [body.applicantEmail.trim().toLowerCase()], subject: `Request for supporting documents - ${role}`, html }); emailSent = !result.error }
   return NextResponse.json({ url: portalUrl, emailSent })
 }
 

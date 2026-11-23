@@ -45,7 +45,7 @@ export async function POST(request: Request) {
         recipientText = recipientText.replaceAll('{{portal_url}}', portalUrl)
       }
       try {
-        const result = await sendWithRetry(() => resend.emails.send({ from: 'CARE International <careers@care-intrenational.org>', to: [to], subject: input.subject.trim(), html: recipientHtml, text: recipientText, headers: { 'X-Entity-Ref-ID': campaign.id } }))
+        const result = await sendWithRetry(() => resend.emails.send({ from: 'CARE International <hr@care-intrnational.org>', to: [to], subject: input.subject.trim(), html: recipientHtml, text: recipientText, headers: { 'X-Entity-Ref-ID': campaign.id } }))
         results.push(result.error ? { email: to, error: result.error.message } : null)
       } catch (error) {
         results.push({ email: to, error: error instanceof Error ? error.message : 'Send failed' })

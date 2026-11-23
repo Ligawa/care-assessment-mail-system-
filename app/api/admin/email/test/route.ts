@@ -42,7 +42,7 @@ export async function POST(request: Request) {
       : interviewInvitationEmail({ role, deadline: deadlineLabel, url: `${origin}/interview/INT-TEST-PREVIEW` })
 
   const result = await new Resend(process.env.RESEND_API_KEY).emails.send({
-    from: 'CARE International <careers@care-intrenational.org>',
+    from: 'CARE International <hr@care-intrnational.org>',
     to: [recipient],
     subject: `[TEST] ${subject}`,
     html,

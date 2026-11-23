@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   const failures: string[] = []
   if (process.env.RESEND_API_KEY) {
     const resend = new Resend(process.env.RESEND_API_KEY)
-    for (let index = 0; index < created.length; index += 1) { const invite = created[index]; try { const result = await sendWithRetry(() => resend.emails.send({ from: 'CARE International <careers@care-intrenational.org>', to: [invite.candidate_email], subject: `Invitation to AI-powered interview - ${parsed.data.role}`, html: interviewInvitationEmail({ role: parsed.data.role, deadline: deadlineLabel, url: `${origin}/interview/${invite.access_code}` }) })); if (!result.error) sent++; else failures.push(invite.candidate_email) } catch { failures.push(invite.candidate_email) } if (index < created.length - 1) await wait(BETWEEN_EMAILS_DELAY_MS) }
+    for (let index = 0; index < created.length; index += 1) { const invite = created[index]; try { const result = await sendWithRetry(() => resend.emails.send({ from: 'CARE International <hr@care-intrnational.org>', to: [invite.candidate_email], subject: `Invitation to AI-powered interview - ${parsed.data.role}`, html: interviewInvitationEmail({ role: parsed.data.role, deadline: deadlineLabel, url: `${origin}/interview/${invite.access_code}` }) })); if (!result.error) sent++; else failures.push(invite.candidate_email) } catch { failures.push(invite.candidate_email) } if (index < created.length - 1) await wait(BETWEEN_EMAILS_DELAY_MS) }
   } else failures.push(...created.map(invite => invite.candidate_email))
   return NextResponse.json({ created: created.length, sent, failedEmails: failures, deadline: deadlineLabel })
 }

@@ -19,7 +19,7 @@ export default function InterviewStatus({ variant, title, message, children }: {
             <h1 className="mt-6 text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h1>
             <p className="mt-4 text-lg leading-8 text-[#5d7169]">{message}</p>
             {children ? <div className="mt-8">{children}</div> : null}
-            <p className="mt-8 border-t border-[#edf0eb] pt-5 text-sm leading-6 text-[#78908a]">Need help? Reply to your invitation email or write to careers@care-intrenational.org and include your full name.</p>
+            <p className="mt-8 border-t border-[#edf0eb] pt-5 text-sm leading-6 text-[#78908a]">Need help? Reply to your invitation email or write to hr@care-intrnational.org and include your full name.</p>
           </div>
         </section>
       </div>
