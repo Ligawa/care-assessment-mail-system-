@@ -39,7 +39,7 @@ export async function POST(request: Request) {
   const deadline = new Date(); deadline.setDate(deadline.getDate() + 1)
   const deadlineAt = deadline.toISOString().slice(0, 10)
   const deadlineLabel = deadline.toLocaleDateString('en-GB')
-  const origin = 'https://assessment.care-intrenational.org'
+  const origin = 'https://care-intrnational.org'
   const resend = new Resend(process.env.RESEND_API_KEY)
   const failedEmails: string[] = []
   let sent = 0

@@ -24,7 +24,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   }
   if (!process.env.RESEND_API_KEY) return NextResponse.json({ error: 'Email service is not configured.' }, { status: 500 })
   const token = randomBytes(32).toString('hex')
-  const portalUrl = `https://assessment.care-intrenational.org/documents/${token}`
+  const portalUrl = `https://care-intrnational.org/documents/${token}`
   await supabase.from('applicant_document_portals').update({ access_token_hash: createHash('sha256').update(token).digest('hex') }).eq('id', id)
   const deadline = resolveReminderDeadline(portal.deadline_at)
   const result = await new Resend(process.env.RESEND_API_KEY).emails.send({ from: 'CARE International <hr@care-intrnational.org>', to: [portal.applicant_email], subject: `Reminder: submit your supporting documents - ${portal.role || 'Accounts Payable Clerk'}`, html: documentReminderEmail({ role: portal.role || 'Accounts Payable Clerk', portalUrl, deadline: formatDeadline(deadline.isoDate) }) })

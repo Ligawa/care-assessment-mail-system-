@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   if (!recipient) return NextResponse.json({ error: 'Enter an email address to receive the test.' }, { status: 400 })
 
   const { type, role } = parsed.data
-  const origin = process.env.NEXT_PUBLIC_APP_URL || 'https://assessment.care-intrenational.org'
+  const origin = 'https://care-intrnational.org'
   const deadline = new Date(); deadline.setDate(deadline.getDate() + 1)
   const deadlineLabel = deadline.toLocaleDateString('en-GB')
 
