@@ -119,5 +119,5 @@ export async function POST(request: Request) {
     const error = await updateResponse.json().catch(() => ({}))
     return NextResponse.json({ error: error.detail?.[0]?.msg || error.detail || 'Unable to update the ElevenLabs agent and retention policy.' }, { status: 502 })
   }
-  return NextResponse.json({ guardrailsApplied: true, recordingEnabled: true, retentionDays: CALL_RETENTION_DAYS, message: `AI interview guardrails are active, call recording is enabled, and call retention is set to ${CALL_RETENTION_DAYS} days.` })
+  return NextResponse.json({ guardrailsApplied: true, recordingEnabled: true, retentionDays: CALL_RETENTION_DAYS, message: `Call verification is available, AI interview guardrails are active, call recording is enabled, and retention is set to ${CALL_RETENTION_DAYS} days.` })
 }
