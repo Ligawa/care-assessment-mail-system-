@@ -29,6 +29,5 @@ export default async function InterviewPage({ params }: { params: Promise<{ acce
     )
   }
 
-  const { data: voice } = await supabase.from('interview_settings').select('voice_uri,voice_name,voice_lang').eq('id', 1).maybeSingle()
-  return <InterviewClient role={role} accessCode={assessment?.access_code || interview?.access_code || accessCode} voiceUri={voice?.voice_uri || ''} />
+  return <InterviewClient role={role} accessCode={assessment?.access_code || interview?.access_code || accessCode} />
 }

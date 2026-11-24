@@ -2,7 +2,7 @@ import { generateText } from 'ai'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { z } from 'zod'
 
-const schema = z.object({ accessCode: z.string().min(1), role: z.string().min(1), candidateName: z.string().min(1), candidateEmail: z.string().email(), transcript: z.array(z.object({ speaker: z.enum(['Emmy Nana', 'Candidate']), text: z.string().min(1) })).min(2).max(40) })
+const schema = z.object({ accessCode: z.string().min(1), role: z.string().min(1), candidateName: z.string().min(1), candidateEmail: z.string().email(), transcript: z.array(z.object({ speaker: z.enum(['George', 'Candidate']), text: z.string().min(1) })).min(2).max(40) })
 
 export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json())
