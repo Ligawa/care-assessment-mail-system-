@@ -4,20 +4,8 @@ import { CALL_AGENT_FIRST_MESSAGE, CALL_AGENT_GUARDRAILS, CALL_AGENT_ID, CALL_AG
 import { getCallReferenceLookupToken } from '@/lib/call-reference-auth'
 import { getElevenLabsErrorMessage } from '@/lib/elevenlabs-error'
 
-async function ensureReferenceTool(requestUrl: string) {
-  const apiKey = process.env.ELEVENLABS_API_KEY
-  if (!apiKey) throw new Error('ElevenLabs is not configured.')
-
-  const headers = { 'xi-api-key': apiKey, 'Content-Type': 'application/json' }
-  const listUrl = new URL('https://api.elevenlabs.io/v1/convai/tools')
-  listUrl.searchParams.set('search', CALL_REFERENCE_TOOL_NAME)
-  listUrl.searchParams.set('page_size', '100')
-  const listResponse = await fetch(listUrl, { headers: { 'xi-api-key': apiKey }, cache: 'no-store' })
-  const listPayload = await listResponse.json().catch(() => ({}))
-  if (!listResponse.ok) throw new Error(getElevenLabsErrorMessage(listPayload, 'Unable to find the reference verification tool.'))
-
-  const existing = listPayload.tools?.find((tool: { id: string; tool_config?: { name?: string; type?: string } }) => tool.tool_config?.name === CALL_REFERENCE_TOOL_NAME)
-  const toolConfig = {
+function createReferenceToolConfig(requestUrl: string) {
+  return {
     type: 'webhook',
     name: CALL_REFERENCE_TOOL_NAME,
     description: 'Verifies CARE application, offer, and published job/assessment references. For applications and offers, provide the exact reference plus the candidate email or full name. Do not claim a reference is genuine unless verified is true.',
@@ -37,7 +25,21 @@ async function ensureReferenceTool(requestUrl: string) {
       },
     },
   }
+}
 
+async function ensureReferenceTool(toolConfig: ReturnType<typeof createReferenceToolConfig>) {
+  const apiKey = process.env.ELEVENLABS_API_KEY
+  if (!apiKey) throw new Error('ElevenLabs is not configured.')
+
+  const headers = { 'xi-api-key': apiKey, 'Content-Type': 'application/json' }
+  const listUrl = new URL('https://api.elevenlabs.io/v1/convai/tools')
+  listUrl.searchParams.set('search', CALL_REFERENCE_TOOL_NAME)
+  listUrl.searchParams.set('page_size', '100')
+  const listResponse = await fetch(listUrl, { headers: { 'xi-api-key': apiKey }, cache: 'no-store' })
+  const listPayload = await listResponse.json().catch(() => ({}))
+  if (!listResponse.ok) throw new Error(getElevenLabsErrorMessage(listPayload, 'Unable to find the reference verification tool.'))
+
+  const existing = listPayload.tools?.find((tool: { id: string; tool_config?: { name?: string; type?: string } }) => tool.tool_config?.name === CALL_REFERENCE_TOOL_NAME)
   if (existing && existing.tool_config?.type !== 'webhook') throw new Error('A non-webhook tool already uses the CARE reference verification name.')
   const toolUrl = existing
     ? `https://api.elevenlabs.io/v1/convai/tools/${encodeURIComponent(existing.id)}`
@@ -92,13 +94,28 @@ export async function POST(request: Request) {
   const basePrompt = markerIndex === -1 ? currentPrompt.prompt.trim() : currentPrompt.prompt.slice(0, markerIndex).trimEnd()
   const prompt = `${basePrompt}\n\n${CALL_AGENT_GUARDRAILS}`
   const privacy = current.platform_settings?.privacy ?? {}
-  let referenceToolId: string
-  try {
-    referenceToolId = await ensureReferenceTool(request.url)
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to configure the reference verification tool.' }, { status: 502 })
-  }
+  const toolConfig = createReferenceToolConfig(request.url)
+  const inlineTools = Array.isArray(currentPrompt.tools) ? currentPrompt.tools.filter((tool: { name?: string }) => tool.name !== CALL_REFERENCE_TOOL_NAME) : []
   const toolIds = Array.isArray(currentPrompt.tool_ids) ? currentPrompt.tool_ids.filter((id: unknown): id is string => typeof id === 'string') : []
+  if (inlineTools.length && toolIds.length) {
+    return NextResponse.json({ error: 'The ElevenLabs agent has both inline tools and tool IDs. Resolve its existing tool configuration before applying guardrails.' }, { status: 409 })
+  }
+
+  const promptConfig = { ...currentPrompt, prompt }
+  if (inlineTools.length) {
+    promptConfig.tools = [...inlineTools, toolConfig]
+    delete promptConfig.tool_ids
+  } else {
+    let referenceToolId: string
+    try {
+      referenceToolId = await ensureReferenceTool(toolConfig)
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to configure the reference verification tool.' }, { status: 502 })
+    }
+    promptConfig.tool_ids = [...new Set([...toolIds, referenceToolId])]
+    delete promptConfig.tools
+  }
+
   const updateResponse = await fetch(url, {
     method: 'PATCH',
     headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
@@ -114,7 +131,7 @@ export async function POST(request: Request) {
           ...currentConversation.vad,
           background_voice_detection: CALL_BACKGROUND_VOICE_DETECTION,
         },
-        agent: { ...currentAgent, first_message: CALL_AGENT_FIRST_MESSAGE, prompt: { ...currentPrompt, prompt, tool_ids: [...new Set([...toolIds, referenceToolId])] } },
+        agent: { ...currentAgent, first_message: CALL_AGENT_FIRST_MESSAGE, prompt: promptConfig },
       },
       platform_settings: {
         ...current.platform_settings,
