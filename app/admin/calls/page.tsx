@@ -24,21 +24,31 @@ export default async function CallCenterPage() {
   let guardrailsApplied = false
   let retentionDays: number | null = null
   let recordingEnabled = false
+  let providerError = process.env.ELEVENLABS_API_KEY ? '' : 'ElevenLabs API key is not configured in the deployment environment.'
   if (providerConfigured) {
     try {
       const response = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${CALL_AGENT_ID}`, { headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY! }, cache: 'no-store' })
-      const agent = await response.json()
-      const agentConfig = agent.conversation_config?.agent
-      const prompt = agentConfig?.prompt?.prompt
-      providerConfigured = response.ok
-      recordingEnabled = agent.platform_settings?.privacy?.record_voice === true
-      guardrailsApplied = response.ok && typeof prompt === 'string' && prompt.includes(CALL_GUARDRAILS_MARKER) && prompt.includes(CALL_REFERENCE_TOOL_NAME) && agentConfig?.first_message === CALL_AGENT_FIRST_MESSAGE && recordingEnabled
-      const configuredRetention = agent.platform_settings?.privacy?.retention_days
-      retentionDays = typeof configuredRetention === 'number' ? configuredRetention : null
-    } catch {
+      const agent = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        const detail = agent.detail
+        providerError = Array.isArray(detail) && typeof detail[0]?.msg === 'string'
+          ? detail[0].msg
+          : typeof detail === 'string' ? detail : typeof agent.message === 'string' ? agent.message : 'ElevenLabs could not load the call agent.'
+        providerConfigured = false
+      } else {
+        const agentConfig = agent.conversation_config?.agent
+        const prompt = agentConfig?.prompt?.prompt
+        providerError = ''
+        recordingEnabled = agent.platform_settings?.privacy?.record_voice === true
+        guardrailsApplied = typeof prompt === 'string' && prompt.includes(CALL_GUARDRAILS_MARKER) && prompt.includes(CALL_REFERENCE_TOOL_NAME) && agentConfig?.first_message === CALL_AGENT_FIRST_MESSAGE && recordingEnabled
+        const configuredRetention = agent.platform_settings?.privacy?.retention_days
+        retentionDays = typeof configuredRetention === 'number' ? configuredRetention : null
+      }
+    } catch (error) {
       providerConfigured = false
+      providerError = error instanceof Error ? error.message : 'Unable to reach ElevenLabs.'
     }
   }
 
-  return <CallCenter initialCalls={calls ?? []} candidates={candidates ?? []} initialGuardrailsApplied={guardrailsApplied} providerConfigured={providerConfigured} retentionDays={retentionDays} recordingEnabled={recordingEnabled} />
+  return <CallCenter initialCalls={calls ?? []} candidates={candidates ?? []} initialGuardrailsApplied={guardrailsApplied} providerConfigured={providerConfigured} providerError={providerError} retentionDays={retentionDays} recordingEnabled={recordingEnabled} />
 }

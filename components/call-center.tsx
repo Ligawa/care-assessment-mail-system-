@@ -26,9 +26,10 @@ type CallRecord = {
 
 type Candidate = { id: string; candidate_name: string | null; candidate_email: string | null; role: string; status: string; created_at: string }
 
-export default function CallCenter({ initialCalls, candidates, initialGuardrailsApplied, providerConfigured, retentionDays: initialRetentionDays, recordingEnabled: initialRecordingEnabled }: { initialCalls: CallRecord[]; candidates: Candidate[]; initialGuardrailsApplied: boolean; providerConfigured: boolean; retentionDays: number | null; recordingEnabled: boolean }) {
+export default function CallCenter({ initialCalls, candidates, initialGuardrailsApplied, providerConfigured, providerError: initialProviderError, retentionDays: initialRetentionDays, recordingEnabled: initialRecordingEnabled }: { initialCalls: CallRecord[]; candidates: Candidate[]; initialGuardrailsApplied: boolean; providerConfigured: boolean; providerError: string; retentionDays: number | null; recordingEnabled: boolean }) {
   const [calls, setCalls] = useState(initialCalls)
   const [guardrailsApplied, setGuardrailsApplied] = useState(initialGuardrailsApplied)
+  const [providerReady, setProviderReady] = useState(providerConfigured)
   const [retentionDays, setRetentionDays] = useState(initialRetentionDays)
   const [recordingEnabled, setRecordingEnabled] = useState(initialRecordingEnabled)
   const [selectedCandidateId, setSelectedCandidateId] = useState('')
@@ -38,7 +39,7 @@ export default function CallCenter({ initialCalls, candidates, initialGuardrails
   const [syncBusy, setSyncBusy] = useState(false)
   const [guardrailBusy, setGuardrailBusy] = useState(false)
   const [activeTranscript, setActiveTranscript] = useState<string | null>(null)
-  const [providerError, setProviderError] = useState('')
+  const [providerError, setProviderError] = useState(initialProviderError)
   const [notice, setNotice] = useState<{ message: string; error: boolean } | null>(null)
 
   const selectedCandidate = candidates.find(candidate => candidate.id === selectedCandidateId)
@@ -68,6 +69,8 @@ export default function CallCenter({ initialCalls, candidates, initialGuardrails
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Unable to configure the agent.')
       setGuardrailsApplied(true)
+      setProviderReady(true)
+      setProviderError('')
       setRecordingEnabled(data.recordingEnabled === true)
       setRetentionDays(typeof data.retentionDays === 'number' ? data.retentionDays : null)
       setNotice({ message: data.message || 'Agent guardrails applied.', error: false })
@@ -141,7 +144,7 @@ export default function CallCenter({ initialCalls, candidates, initialGuardrails
     <div className="mx-auto max-w-7xl px-5 py-7 lg:px-8">
       {notice && <div role={notice.error ? 'alert' : 'status'} className={`mb-6 rounded-2xl border px-4 py-3 text-sm ${notice.error ? 'border-destructive/30 bg-destructive/5 text-destructive' : 'border-primary/20 bg-primary/5 text-foreground'}`}>{notice.message}</div>}
       {providerError && <div role="alert" className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">{providerError}</div>}
-      {providerConfigured && !recordingEnabled && <div role="alert" className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950"><strong>Call recording is off:</strong> Apply the agent guardrails below to enable recording and the 90-day retention policy for inbound and outbound calls.</div>}
+      {providerReady && !recordingEnabled && <div role="alert" className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950"><strong>Call recording is off:</strong> Apply the agent guardrails below to enable recording and the 90-day retention policy for inbound and outbound calls.</div>}
       {recordingEnabled && retentionDays !== CALL_RETENTION_DAYS && <div role="alert" className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950"><strong>Call-data retention:</strong> The approved 90-day retention policy has not been confirmed in ElevenLabs yet. Apply the agent guardrails below before placing calls.</div>}
       {recordingEnabled && retentionDays === 90 && <div role="note" className="mb-6 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm leading-6 text-foreground"><strong>Call-data retention:</strong> Recordings and transcripts are configured for automatic deletion after 90 days. Call-log records are also deleted daily after 90 days.</div>}
 
@@ -185,15 +188,15 @@ export default function CallCenter({ initialCalls, candidates, initialGuardrails
               <input id="phone" type="tel" required value={phoneNumber} onChange={event => setPhoneNumber(event.target.value)} placeholder="+15551234567" autoComplete="tel" pattern="\+[1-9][0-9]{7,14}" title="Enter a valid international number starting with +" className="h-11 rounded-xl border border-input bg-background px-3 font-normal" />
             </label>
             <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-border p-3 text-xs leading-5 text-muted-foreground"><input type="checkbox" checked={consentConfirmed} onChange={event => setConsentConfirmed(event.target.checked)} className="mt-0.5 size-4 shrink-0 accent-primary" /><span>I confirm the candidate has agreed to an AI-led, recorded call, with recordings and transcripts retained for up to 90 days for recruitment review.</span></label>
-            <button type="submit" disabled={busy || !consentConfirmed || !guardrailsApplied || !providerConfigured} className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">{busy ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> : <Phone aria-hidden="true" className="size-4" />}{busy ? 'Connecting…' : 'Place outbound call'}</button>
-            {!providerConfigured && <p className="mt-3 text-xs text-destructive">ElevenLabs is not configured. Contact your project administrator.</p>}
-            {!guardrailsApplied && providerConfigured && <p className="mt-3 text-xs text-amber-800">Apply agent guardrails below before placing calls.</p>}
+            <button type="submit" disabled={busy || !consentConfirmed || !guardrailsApplied || !providerReady} className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">{busy ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> : <Phone aria-hidden="true" className="size-4" />}{busy ? 'Connecting…' : 'Place outbound call'}</button>
+            {!providerReady && <p className="mt-3 text-xs text-destructive">ElevenLabs is unavailable. Check the error above, then retry agent setup.</p>}
+            {!guardrailsApplied && providerReady && <p className="mt-3 text-xs text-amber-800">Apply agent guardrails below before placing calls.</p>}
           </form>
 
           <section className="rounded-3xl border border-border bg-card p-5 sm:p-6">
             <div className="flex items-start gap-3"><div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><ShieldCheck aria-hidden="true" className="size-5" /></div><div><p className="text-xs font-semibold uppercase tracking-[0.15em] text-primary">Agent controls</p><h2 className="mt-1 font-semibold">Interview safeguards</h2></div></div>
             <ul className="mt-4 flex flex-col gap-3 text-sm leading-5 text-muted-foreground"><li>Disclose AI and recording; ask verbal consent before questions.</li><li>Offer to verify CARE vacancy codes, application references, and offer references.</li><li>Offer repeat, pause, skip, human follow-up, and stop commands.</li><li>No protected-characteristic questions, candidate ranking, or hiring decisions.</li><li>Keep final screening and employment decisions with a human reviewer.</li></ul>
-            <button type="button" onClick={applyGuardrails} disabled={guardrailBusy || !providerConfigured} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-semibold hover:bg-muted disabled:opacity-50">{guardrailBusy ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> : <ShieldCheck aria-hidden="true" className="size-4" />}{guardrailsApplied ? 'Reapply agent guardrails' : 'Apply agent guardrails'}</button>
+            <button type="button" onClick={applyGuardrails} disabled={guardrailBusy} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-semibold hover:bg-muted disabled:opacity-50">{guardrailBusy ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> : <ShieldCheck aria-hidden="true" className="size-4" />}{guardrailsApplied ? 'Reapply agent guardrails' : 'Apply agent guardrails'}</button>
           </section>
         </aside>
       </div>
