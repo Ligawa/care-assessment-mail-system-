@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { CALL_AGENT_FIRST_MESSAGE, CALL_AGENT_GUARDRAILS, CALL_AGENT_ID, CALL_AGENT_NAME, CALL_BACKGROUND_VOICE_DETECTION, CALL_GUARDRAILS_MARKER, CALL_REFERENCE_TOOL_NAME, CALL_RETENTION_DAYS, CALL_TURN_EAGERNESS } from '@/lib/call-agent-guardrails'
+import { CALL_AGENT_FIRST_MESSAGE, CALL_AGENT_GUARDRAILS, CALL_AGENT_ID, CALL_AGENT_NAME, CALL_BACKGROUND_VOICE_DETECTION, CALL_GUARDRAILS_MARKER, CALL_GUARDRAILS_VERSION_MARKER, CALL_REFERENCE_TOOL_NAME, CALL_RETENTION_DAYS, CALL_TURN_EAGERNESS } from '@/lib/call-agent-guardrails'
 import { getCallReferenceLookupToken } from '@/lib/call-reference-auth'
 import { getElevenLabsErrorMessage } from '@/lib/elevenlabs-error'
 
@@ -76,7 +76,7 @@ export async function GET() {
   const turnConfig = agent.conversation_config?.turn
   const backgroundVoiceDetectionEnabled = agent.conversation_config?.vad?.background_voice_detection === CALL_BACKGROUND_VOICE_DETECTION
   const patientTurnTakingEnabled = turnConfig?.turn_eagerness === CALL_TURN_EAGERNESS
-  const guardrailsApplied = typeof prompt === 'string' && prompt.includes(CALL_GUARDRAILS_MARKER) && agentConfig?.first_message === CALL_AGENT_FIRST_MESSAGE && recordingEnabled && referenceToolConfigured && backgroundVoiceDetectionEnabled && patientTurnTakingEnabled
+  const guardrailsApplied = typeof prompt === 'string' && prompt.includes(CALL_GUARDRAILS_MARKER) && prompt.includes(CALL_GUARDRAILS_VERSION_MARKER) && agentConfig?.first_message === CALL_AGENT_FIRST_MESSAGE && recordingEnabled && referenceToolConfigured && backgroundVoiceDetectionEnabled && patientTurnTakingEnabled
   return NextResponse.json({ name: agent.name || CALL_AGENT_NAME, guardrailsApplied, recordingEnabled, referenceToolConfigured, backgroundVoiceDetectionEnabled, patientTurnTakingEnabled, phoneNumber: '+15722124506' })
 }
 

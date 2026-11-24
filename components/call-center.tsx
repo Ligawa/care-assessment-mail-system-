@@ -42,6 +42,7 @@ export default function CallCenter({ initialCalls, candidates, initialGuardrails
   const [recordingEnabled, setRecordingEnabled] = useState(initialRecordingEnabled)
   const [selectedCandidateId, setSelectedCandidateId] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
+  const [callReason, setCallReason] = useState('')
   const [consentConfirmed, setConsentConfirmed] = useState(false)
   const [busy, setBusy] = useState(false)
   const [syncBusy, setSyncBusy] = useState(false)
@@ -117,6 +118,7 @@ export default function CallCenter({ initialCalls, candidates, initialGuardrails
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           phoneNumber: phoneNumber.trim(),
+          callReason: callReason.trim(),
           consentConfirmed,
           candidateName: selectedCandidate?.candidate_name || '',
           candidateEmail: selectedCandidate?.candidate_email || '',
@@ -128,9 +130,10 @@ export default function CallCenter({ initialCalls, candidates, initialGuardrails
       if (!response.ok) throw new Error(data.error || 'Unable to start call.')
       setCalls(current => [data.call, ...current.filter(call => call.id !== data.call.id)])
       setPhoneNumber('')
+      setCallReason('')
       setSelectedCandidateId('')
       setConsentConfirmed(false)
-      setNotice({ message: 'Outbound call started. The agent will disclose the recording and request verbal consent before interview questions.', error: false })
+      setNotice({ message: 'Outbound call started. George will explain the supplied reason, disclose recording, and request verbal consent before discussing it.', error: false })
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : 'Unable to start call.', error: true })
     } finally { setBusy(false) }
@@ -212,8 +215,12 @@ export default function CallCenter({ initialCalls, candidates, initialGuardrails
             <label className="mt-4 flex flex-col gap-2 text-sm font-semibold" htmlFor="phone">Phone number <span className="font-normal text-muted-foreground">International format, starting with + and country code</span>
               <input id="phone" type="tel" required value={phoneNumber} onChange={event => setPhoneNumber(event.target.value)} placeholder="+15551234567" autoComplete="tel" pattern="\+[1-9][0-9]{7,14}" title="Enter a valid international number starting with +" className="h-11 rounded-xl border border-input bg-background px-3 font-normal" />
             </label>
+            <label className="mt-4 flex flex-col gap-2 text-sm font-semibold" htmlFor="callReason">Reason for this call
+              <span className="font-normal text-muted-foreground">George will confirm the intended recipient, then explain this reason and keep the conversation focused on it. Avoid sensitive details.</span>
+              <textarea id="callReason" required minLength={5} maxLength={500} value={callReason} onChange={event => setCallReason(event.target.value)} placeholder="For example: Follow up about your application for the HR Assistant vacancy." className="min-h-24 rounded-xl border border-input bg-background px-3 py-2 font-normal" />
+            </label>
             <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-border p-3 text-xs leading-5 text-muted-foreground"><input type="checkbox" checked={consentConfirmed} onChange={event => setConsentConfirmed(event.target.checked)} className="mt-0.5 size-4 shrink-0 accent-primary" /><span>I confirm the candidate has agreed to an AI-led, recorded call, with recordings and transcripts retained for up to 90 days for recruitment review.</span></label>
-            <button type="submit" disabled={busy || !consentConfirmed || !guardrailsApplied || !providerReady} className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">{busy ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> : <Phone aria-hidden="true" className="size-4" />}{busy ? 'Connecting…' : 'Place outbound call'}</button>
+            <button type="submit" disabled={busy || !callReason.trim() || !consentConfirmed || !guardrailsApplied || !providerReady} className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">{busy ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> : <Phone aria-hidden="true" className="size-4" />}{busy ? 'Connecting…' : 'Place outbound call'}</button>
             {!providerReady && <p className="mt-3 text-xs text-destructive">ElevenLabs is unavailable. Check the error above, then retry agent setup.</p>}
             {!guardrailsApplied && providerReady && <p className="mt-3 text-xs text-amber-800">Apply agent guardrails below before placing calls.</p>}
           </form>
