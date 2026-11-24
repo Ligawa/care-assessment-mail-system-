@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { CALL_AGENT_FIRST_MESSAGE, CALL_AGENT_ID, CALL_GUARDRAILS_MARKER, CALL_REFERENCE_TOOL_NAME } from '@/lib/call-agent-guardrails'
+import { CALL_AGENT_FIRST_MESSAGE, CALL_AGENT_ID, CALL_BACKGROUND_VOICE_DETECTION, CALL_GUARDRAILS_MARKER, CALL_REFERENCE_TOOL_NAME, CALL_TURN_EAGERNESS } from '@/lib/call-agent-guardrails'
 import CallCenter from '@/components/call-center'
 
 export const dynamic = 'force-dynamic'
@@ -40,7 +40,10 @@ export default async function CallCenterPage() {
         const prompt = agentConfig?.prompt?.prompt
         providerError = ''
         recordingEnabled = agent.platform_settings?.privacy?.record_voice === true
-        guardrailsApplied = typeof prompt === 'string' && prompt.includes(CALL_GUARDRAILS_MARKER) && prompt.includes(CALL_REFERENCE_TOOL_NAME) && agentConfig?.first_message === CALL_AGENT_FIRST_MESSAGE && recordingEnabled
+        const turnConfig = agent.conversation_config?.turn
+        const backgroundVoiceDetectionEnabled = agent.conversation_config?.vad?.background_voice_detection === CALL_BACKGROUND_VOICE_DETECTION
+        const patientTurnTakingEnabled = turnConfig?.turn_eagerness === CALL_TURN_EAGERNESS
+        guardrailsApplied = typeof prompt === 'string' && prompt.includes(CALL_GUARDRAILS_MARKER) && prompt.includes(CALL_REFERENCE_TOOL_NAME) && agentConfig?.first_message === CALL_AGENT_FIRST_MESSAGE && recordingEnabled && backgroundVoiceDetectionEnabled && patientTurnTakingEnabled
         const configuredRetention = agent.platform_settings?.privacy?.retention_days
         retentionDays = typeof configuredRetention === 'number' ? configuredRetention : null
       }

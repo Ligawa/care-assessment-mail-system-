@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { CALL_AGENT_FIRST_MESSAGE, CALL_AGENT_ID, CALL_GUARDRAILS_MARKER, CALL_PHONE_NUMBER_ID, CALL_REFERENCE_TOOL_NAME } from '@/lib/call-agent-guardrails'
+import { CALL_AGENT_FIRST_MESSAGE, CALL_AGENT_ID, CALL_BACKGROUND_VOICE_DETECTION, CALL_GUARDRAILS_MARKER, CALL_PHONE_NUMBER_ID, CALL_REFERENCE_TOOL_NAME, CALL_TURN_EAGERNESS } from '@/lib/call-agent-guardrails'
 
 const outboundCallSchema = z.object({
   phoneNumber: z.string().trim().regex(/^\+[1-9]\d{7,14}$/, 'Enter a valid international phone number, including country code.'),
@@ -74,8 +74,10 @@ export async function POST(request: Request) {
   const agent = await agentResponse.json()
   const agentConfig = agent.conversation_config?.agent
   const prompt = agentConfig?.prompt?.prompt
-  if (!agentResponse.ok || typeof prompt !== 'string' || !prompt.includes(CALL_GUARDRAILS_MARKER) || !prompt.includes(CALL_REFERENCE_TOOL_NAME) || agentConfig?.first_message !== CALL_AGENT_FIRST_MESSAGE || agent.platform_settings?.privacy?.record_voice !== true) {
-    return NextResponse.json({ error: 'Apply the required AI interview guardrails and recording settings before placing a call.' }, { status: 409 })
+  const patientTurnTakingEnabled = agent.conversation_config?.turn?.turn_eagerness === CALL_TURN_EAGERNESS
+  const backgroundVoiceDetectionEnabled = agent.conversation_config?.vad?.background_voice_detection === CALL_BACKGROUND_VOICE_DETECTION
+  if (!agentResponse.ok || typeof prompt !== 'string' || !prompt.includes(CALL_GUARDRAILS_MARKER) || !prompt.includes(CALL_REFERENCE_TOOL_NAME) || agentConfig?.first_message !== CALL_AGENT_FIRST_MESSAGE || agent.platform_settings?.privacy?.record_voice !== true || !patientTurnTakingEnabled || !backgroundVoiceDetectionEnabled) {
+    return NextResponse.json({ error: 'Apply the required AI interview guardrails, noise filtering, patient turn-taking, and recording settings before placing a call.' }, { status: 409 })
   }
 
   const input = parsed.data

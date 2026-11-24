@@ -3,6 +3,8 @@ export const CALL_PHONE_NUMBER_ID = 'phnum_0801m7z1d7mcfttr345n1xwpq7ar'
 export const CALL_AGENT_NAME = 'George, CARE International AI Human Resources Assistant'
 export const CALL_REFERENCE_TOOL_NAME = 'verify_care_reference'
 export const CALL_RETENTION_DAYS = 90
+export const CALL_TURN_EAGERNESS = 'patient'
+export const CALL_BACKGROUND_VOICE_DETECTION = true
 
 export const CALL_GUARDRAILS_MARKER = 'CARE CALL CENTRE SAFETY AND PROCESS RULES'
 export const CALL_AGENT_FIRST_MESSAGE = "Hello, I'm George, an AI Human Resources Assistant with CARE International. This call may be recorded and transcribed for recruitment review, with recordings and transcripts retained for up to 90 days. I can help verify a CARE vacancy code, an application reference, or an offer letter. Do I have your permission to continue with this AI-led call?"
@@ -19,6 +21,11 @@ CALLER OPTIONS
 - For a verification, ask for the exact reference and use the verification tool. Do not make callers know or say the tool's name.
 - For application and offer references, also ask for the candidate's email address or full name. A vacancy/job code can be checked without identity details.
 - If the caller asks about application progress beyond receipt, explain that the reference check confirms receipt only and direct them to a human recruiter for further status.
+
+VOICE TURN-TAKING
+- Ignore brief background noise, clicks, coughs, and other non-directed sounds; do not stop speaking or treat them as caller interruptions.
+- Respond to sustained, clearly directed caller speech. If the audio is ambiguous, wait briefly for a clearer turn rather than interrupting the caller or abandoning your response.
+- Always honor clear requests to stop, end the call, or speak to a person immediately.
 
 CANDIDATE CONTROL COMMANDS
 - “Repeat” or “say that again”: repeat the last question once, slowly and in simpler wording when useful.

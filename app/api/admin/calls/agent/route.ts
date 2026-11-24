@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { CALL_AGENT_FIRST_MESSAGE, CALL_AGENT_GUARDRAILS, CALL_AGENT_ID, CALL_AGENT_NAME, CALL_GUARDRAILS_MARKER, CALL_REFERENCE_TOOL_NAME, CALL_RETENTION_DAYS } from '@/lib/call-agent-guardrails'
+import { CALL_AGENT_FIRST_MESSAGE, CALL_AGENT_GUARDRAILS, CALL_AGENT_ID, CALL_AGENT_NAME, CALL_BACKGROUND_VOICE_DETECTION, CALL_GUARDRAILS_MARKER, CALL_REFERENCE_TOOL_NAME, CALL_RETENTION_DAYS, CALL_TURN_EAGERNESS } from '@/lib/call-agent-guardrails'
 import { getCallReferenceLookupToken } from '@/lib/call-reference-auth'
 
 function providerError(payload: Record<string, unknown>, fallback: string) {
@@ -77,8 +77,11 @@ export async function GET() {
   const prompt = agentConfig?.prompt?.prompt
   const recordingEnabled = agent.platform_settings?.privacy?.record_voice === true
   const referenceToolConfigured = typeof prompt === 'string' && prompt.includes(CALL_REFERENCE_TOOL_NAME)
-  const guardrailsApplied = typeof prompt === 'string' && prompt.includes(CALL_GUARDRAILS_MARKER) && agentConfig?.first_message === CALL_AGENT_FIRST_MESSAGE && recordingEnabled && referenceToolConfigured
-  return NextResponse.json({ name: agent.name || CALL_AGENT_NAME, guardrailsApplied, recordingEnabled, referenceToolConfigured, phoneNumber: '+15722124506' })
+  const turnConfig = agent.conversation_config?.turn
+  const backgroundVoiceDetectionEnabled = agent.conversation_config?.vad?.background_voice_detection === CALL_BACKGROUND_VOICE_DETECTION
+  const patientTurnTakingEnabled = turnConfig?.turn_eagerness === CALL_TURN_EAGERNESS
+  const guardrailsApplied = typeof prompt === 'string' && prompt.includes(CALL_GUARDRAILS_MARKER) && agentConfig?.first_message === CALL_AGENT_FIRST_MESSAGE && recordingEnabled && referenceToolConfigured && backgroundVoiceDetectionEnabled && patientTurnTakingEnabled
+  return NextResponse.json({ name: agent.name || CALL_AGENT_NAME, guardrailsApplied, recordingEnabled, referenceToolConfigured, backgroundVoiceDetectionEnabled, patientTurnTakingEnabled, phoneNumber: '+15722124506' })
 }
 
 export async function POST(request: Request) {
@@ -90,6 +93,7 @@ export async function POST(request: Request) {
   const currentPrompt = current.conversation_config?.agent?.prompt
   if (!currentResponse.ok || !currentPrompt || typeof currentPrompt.prompt !== 'string') return NextResponse.json({ error: 'The agent prompt could not be read safely.' }, { status: 502 })
   const currentAgent = current.conversation_config?.agent
+  const currentConversation = current.conversation_config
   const markerIndex = currentPrompt.prompt.indexOf(CALL_GUARDRAILS_MARKER)
   const basePrompt = markerIndex === -1 ? currentPrompt.prompt.trim() : currentPrompt.prompt.slice(0, markerIndex).trimEnd()
   const prompt = `${basePrompt}\n\n${CALL_AGENT_GUARDRAILS}`
@@ -106,6 +110,16 @@ export async function POST(request: Request) {
     headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       conversation_config: {
+        ...currentConversation,
+        turn: {
+          ...currentConversation.turn,
+          turn_eagerness: CALL_TURN_EAGERNESS,
+          noisy_environment_detection: false,
+        },
+        vad: {
+          ...currentConversation.vad,
+          background_voice_detection: CALL_BACKGROUND_VOICE_DETECTION,
+        },
         agent: { ...currentAgent, first_message: CALL_AGENT_FIRST_MESSAGE, prompt: { ...currentPrompt, prompt, tool_ids: [...new Set([...toolIds, referenceToolId])] } },
       },
       platform_settings: {
@@ -119,5 +133,5 @@ export async function POST(request: Request) {
     const error = await updateResponse.json().catch(() => ({}))
     return NextResponse.json({ error: error.detail?.[0]?.msg || error.detail || 'Unable to update the ElevenLabs agent and retention policy.' }, { status: 502 })
   }
-  return NextResponse.json({ guardrailsApplied: true, recordingEnabled: true, retentionDays: CALL_RETENTION_DAYS, message: `Call verification is available, AI interview guardrails are active, call recording is enabled, and retention is set to ${CALL_RETENTION_DAYS} days.` })
+  return NextResponse.json({ guardrailsApplied: true, recordingEnabled: true, backgroundVoiceDetectionEnabled: CALL_BACKGROUND_VOICE_DETECTION, patientTurnTakingEnabled: true, retentionDays: CALL_RETENTION_DAYS, message: `Call verification is available; background-voice filtering and patient turn-taking are enabled; recording and ${CALL_RETENTION_DAYS}-day retention are active.` })
 }
