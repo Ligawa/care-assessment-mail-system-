@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { CALL_AGENT_FIRST_MESSAGE, CALL_AGENT_ID, CALL_GUARDRAILS_MARKER, CALL_PHONE_NUMBER_ID } from '@/lib/call-agent-guardrails'
+import { CALL_AGENT_FIRST_MESSAGE, CALL_AGENT_ID, CALL_GUARDRAILS_MARKER, CALL_PHONE_NUMBER_ID, CALL_REFERENCE_TOOL_NAME } from '@/lib/call-agent-guardrails'
 
 const outboundCallSchema = z.object({
   phoneNumber: z.string().trim().regex(/^\+[1-9]\d{7,14}$/, 'Enter a valid international phone number, including country code.'),
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
   const agent = await agentResponse.json()
   const agentConfig = agent.conversation_config?.agent
   const prompt = agentConfig?.prompt?.prompt
-  if (!agentResponse.ok || typeof prompt !== 'string' || !prompt.includes(CALL_GUARDRAILS_MARKER) || agentConfig?.first_message !== CALL_AGENT_FIRST_MESSAGE || agent.platform_settings?.privacy?.record_voice !== true) {
+  if (!agentResponse.ok || typeof prompt !== 'string' || !prompt.includes(CALL_GUARDRAILS_MARKER) || !prompt.includes(CALL_REFERENCE_TOOL_NAME) || agentConfig?.first_message !== CALL_AGENT_FIRST_MESSAGE || agent.platform_settings?.privacy?.record_voice !== true) {
     return NextResponse.json({ error: 'Apply the required AI interview guardrails and recording settings before placing a call.' }, { status: 409 })
   }
 

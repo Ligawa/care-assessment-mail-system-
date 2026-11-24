@@ -1,8 +1,10 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
-import { Search } from 'lucide-react'
+import { LoaderCircle, Search, Trash2 } from 'lucide-react'
+import { isStalePendingInterviewInvite } from '@/lib/interview-invite-cleanup'
 
 export type InterviewListItem = {
   id: string
@@ -40,9 +42,36 @@ function deadlineTime(value: string | null) {
 }
 
 export default function InterviewsBoard({ interviews, generatedAt }: { interviews: InterviewListItem[]; generatedAt: number }) {
+  const router = useRouter()
   const [filter, setFilter] = useState<Filter>('all')
   const [sort, setSort] = useState<Sort>('newest_invite')
   const [query, setQuery] = useState('')
+  const [cleanupBusy, setCleanupBusy] = useState(false)
+  const [cleanupMessage, setCleanupMessage] = useState<{ text: string; error: boolean } | null>(null)
+
+  const staleInviteCount = useMemo(() => interviews.filter(item => isStalePendingInterviewInvite({
+    status: item.status,
+    startedAt: item.startedAt,
+    completedAt: item.completedAt,
+    createdAt: item.createdAt
+  }, generatedAt)).length, [generatedAt, interviews])
+
+  async function deleteOldInvites() {
+    if (!staleInviteCount || !window.confirm(`Permanently delete ${staleInviteCount} unstarted interview invite${staleInviteCount === 1 ? '' : 's'} older than 7 days? Started and completed interviews will be kept.`)) return
+    setCleanupBusy(true)
+    setCleanupMessage(null)
+    try {
+      const response = await fetch('/api/admin/interviews/cleanup', { method: 'POST' })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Unable to delete old interview invites.')
+      setCleanupMessage({ text: `${data.deletedCount} old invite${data.deletedCount === 1 ? '' : 's'} deleted.`, error: false })
+      router.refresh()
+    } catch (error) {
+      setCleanupMessage({ text: error instanceof Error ? error.message : 'Unable to delete old interview invites.', error: true })
+    } finally {
+      setCleanupBusy(false)
+    }
+  }
 
   const flags = useMemo(() => {
     const map = new Map<string, { completed: boolean; started: boolean; pending: boolean; overdue: boolean; awaiting: boolean; passed: boolean; failed: boolean }>()
@@ -146,6 +175,10 @@ export default function InterviewsBoard({ interviews, generatedAt }: { interview
             />
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            <button type="button" onClick={deleteOldInvites} disabled={cleanupBusy || staleInviteCount === 0} className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#b42318]/30 px-3 text-sm font-semibold text-[#b42318] transition hover:bg-[#fdecea] disabled:cursor-not-allowed disabled:opacity-50">
+              {cleanupBusy ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> : <Trash2 aria-hidden="true" className="size-4" />}
+              {cleanupBusy ? 'Deleting…' : `Delete old invites (${staleInviteCount})`}
+            </button>
             <label className="flex items-center gap-2 text-sm text-[#455c7d]">
               Show
               <select value={filter} onChange={event => setFilter(event.target.value as Filter)} className="h-11 rounded-xl border border-[#ded8ca] bg-white px-3 text-sm text-[#101b30]">
@@ -164,6 +197,7 @@ export default function InterviewsBoard({ interviews, generatedAt }: { interview
           </div>
         </div>
 
+        {cleanupMessage && <p role={cleanupMessage.error ? 'alert' : 'status'} className={`mt-4 text-sm ${cleanupMessage.error ? 'text-[#b42318]' : 'text-[#28704d]'}`}>{cleanupMessage.text}</p>}
         <p className="mt-4 text-sm font-semibold text-[#455c7d]" aria-live="polite">Showing {visible.length} of {interviews.length} interviews</p>
 
         <div className="mt-4 grid gap-3">
