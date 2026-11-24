@@ -17,7 +17,7 @@ const items = [
   { label: 'Interviews', detail: 'Live candidate sessions', href: '/admin/interviews', icon: Video },
   { label: 'Skills Invites', detail: 'Final screening assessments', href: '/admin/assessments', icon: ClipboardCheck },
   { label: 'Offers', detail: 'Sent offer letters', href: '/admin/offers', icon: FileText },
-  { label: 'Voices', detail: 'Select Emmy Nana voice', href: '/admin/interview-voices', icon: Mic2 },
+  { label: 'Voices', detail: 'Select ElevenLabs interview voice', href: '/admin/interview-voices', icon: Mic2 },
   { label: 'Templates', detail: 'Recruitment email library', href: '/admin/templates', icon: FileText },
 ]
 

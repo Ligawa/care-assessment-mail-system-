@@ -3,19 +3,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { Camera, CheckCircle2, Mic, MicOff, Phone, Volume2 } from 'lucide-react'
 
-type Utterance = { speaker: 'Emmy Nana' | 'Candidate'; text: string }
-type Props = { role: string; accessCode: string; voiceUri: string }
+type Utterance = { speaker: 'George' | 'Candidate'; text: string }
+type Props = { role: string; accessCode: string }
 type Recognition = { continuous: boolean; interimResults: boolean; lang: string; start: () => void; stop: () => void; onresult: ((event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null }
 type RecognitionConstructor = new () => Recognition
 
 declare global { interface Window { SpeechRecognition?: RecognitionConstructor; webkitSpeechRecognition?: RecognitionConstructor } }
 
-export default function InterviewClient({ role, accessCode, voiceUri }: Props) {
+export default function InterviewClient({ role, accessCode }: Props) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [started, setStarted] = useState(false)
   const [listening, setListening] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [speaking, setSpeaking] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
   const [heardSomething, setHeardSomething] = useState(false)
@@ -25,7 +26,7 @@ export default function InterviewClient({ role, accessCode, voiceUri }: Props) {
   const [transcript, setTranscript] = useState<Utterance[]>([])
   const loudspeakerRef = useRef(true)
   const microphoneMutedRef = useRef(false)
-  const lastEmmyText = useRef('')
+  const lastGeorgeText = useRef('')
   const spoken = useRef('')
   const committed = useRef('')
   const wantListening = useRef(false)
@@ -34,28 +35,16 @@ export default function InterviewClient({ role, accessCode, voiceUri }: Props) {
   const recognition = useRef<Recognition | null>(null)
   const stream = useRef<MediaStream | null>(null)
   const video = useRef<HTMLVideoElement | null>(null)
-  const chosenVoice = useRef<SpeechSynthesisVoice | null>(null)
-
-  function pickVoice() {
-    const voices = window.speechSynthesis.getVoices()
-    if (!voices.length) return null
-    return voices.find(item => voiceUri && item.voiceURI === voiceUri) || voices.find(item => /Microsoft (Natasha|Jenny|Aria|Sonia)/i.test(item.name)) || voices.find(item => /Google UK English Female|Samantha|Karen|Moira|Zira/i.test(item.name)) || voices.find(item => /^en(-|_)/i.test(item.lang)) || voices[0]
-  }
-
-  useEffect(() => {
-    const load = () => { chosenVoice.current = pickVoice() }
-    load()
-    window.speechSynthesis.addEventListener('voiceschanged', load)
-    return () => window.speechSynthesis.removeEventListener('voiceschanged', load)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voiceUri])
+  const speechPlayer = useRef<HTMLAudioElement | null>(null)
+  const speechObjectUrl = useRef<string | null>(null)
+  const speechRequest = useRef<AbortController | null>(null)
 
   function setAudioSession(type: 'playback' | 'play-and-record') {
     const session = (navigator as unknown as { audioSession?: { type: string } }).audioSession
     if (session) { try { session.type = type } catch { /* unsupported audio session type */ } }
   }
 
-  // Phones switch to the earpiece while the microphone is open, so the mic is released while Emmy speaks.
+  // Phones switch to the earpiece while the microphone is open, so the mic is released while George speaks.
   function releaseMicrophone() {
     const current = stream.current
     if (!current) return
@@ -71,33 +60,73 @@ export default function InterviewClient({ role, accessCode, voiceUri }: Props) {
     } catch { setError('Microphone access was lost. Please allow microphone access, then select Speak.') }
   }
 
-  function speak(text: string) {
-    lastEmmyText.current = text
-    window.speechSynthesis.cancel()
-    if (loudspeakerRef.current) { stopListening(); void stopRecording(); releaseMicrophone(); setAudioSession('playback') }
-    if (!chosenVoice.current) chosenVoice.current = pickVoice()
-    const utterance = new SpeechSynthesisUtterance(text)
-    if (chosenVoice.current) { utterance.voice = chosenVoice.current; utterance.lang = chosenVoice.current.lang }
-    else utterance.lang = 'en-US'
-    utterance.rate = 0.9; utterance.pitch = 1.02; utterance.volume = 1
-    utterance.onend = () => { void (async () => { setAudioSession('play-and-record'); await reacquireMicrophone(); startListening() })() }
-    window.speechSynthesis.speak(utterance)
+  function cancelSpeech() {
+    speechRequest.current?.abort()
+    speechRequest.current = null
+    if (speechPlayer.current) {
+      speechPlayer.current.pause()
+      speechPlayer.current.onended = null
+      speechPlayer.current.onerror = null
+      speechPlayer.current.src = ''
+      speechPlayer.current = null
+    }
+    if (speechObjectUrl.current) {
+      URL.revokeObjectURL(speechObjectUrl.current)
+      speechObjectUrl.current = null
+    }
+  }
+
+  async function continueListening() {
+    setAudioSession('play-and-record')
+    await reacquireMicrophone()
+    startListening()
+  }
+
+  async function speak(text: string) {
+    lastGeorgeText.current = text
+    cancelSpeech()
+    if (!loudspeakerRef.current) { setSpeaking(false); await continueListening(); return }
+    setSpeaking(true)
+    stopListening(); void stopRecording(); releaseMicrophone(); setAudioSession('playback')
+    const controller = new AbortController()
+    speechRequest.current = controller
+    try {
+      const response = await fetch('/api/interview/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, accessCode }), signal: controller.signal })
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || 'George’s voice could not be loaded.')
+      }
+      const objectUrl = URL.createObjectURL(await response.blob())
+      speechObjectUrl.current = objectUrl
+      const player = new Audio(objectUrl)
+      speechPlayer.current = player
+      player.onended = () => { setSpeaking(false); cancelSpeech(); void continueListening() }
+      player.onerror = () => { setSpeaking(false); cancelSpeech(); void (async () => { await continueListening(); setError('George’s voice could not be played. You can still read the question and answer.') })() }
+      await player.play()
+    } catch (cause) {
+      if (controller.signal.aborted) return
+      setSpeaking(false)
+      cancelSpeech()
+      await continueListening()
+      setError(cause instanceof Error ? cause.message : 'George’s voice is temporarily unavailable.')
+    }
   }
 
   function toggleLoudspeaker() {
     const next = !loudspeaker
     loudspeakerRef.current = next; setLoudspeaker(next)
-    if (lastEmmyText.current && !done) speak(lastEmmyText.current)
+    if (next && lastGeorgeText.current && !done) void speak(lastGeorgeText.current)
+    else if (!next) { setSpeaking(false); cancelSpeech(); void continueListening() }
   }
 
-  async function askEmmy(next: Utterance[]) {
+  async function askGeorge(next: Utterance[]) {
     setBusy(true); setError('')
     try {
       const response = await fetch('/api/interview/respond', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role, candidateName: name, accessCode, transcript: next }) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'The interview could not continue.')
-      setTranscript(current => [...current, { speaker: 'Emmy Nana', text: data.text }])
-      if (data.completed) { setDone(true); recognition.current?.stop(); window.speechSynthesis.cancel(); await fetch('/api/interview/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accessCode, role, candidateName: name, candidateEmail: email, transcript: [...next, { speaker: 'Emmy Nana', text: data.text }] }) }); stream.current?.getTracks().forEach(track => track.stop()); return }
+      setTranscript(current => [...current, { speaker: 'George', text: data.text }])
+      if (data.completed) { setDone(true); setSpeaking(false); recognition.current?.stop(); cancelSpeech(); await fetch('/api/interview/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accessCode, role, candidateName: name, candidateEmail: email, transcript: [...next, { speaker: 'George', text: data.text }] }) }); stream.current?.getTracks().forEach(track => track.stop()); return }
       speak(data.text)
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'The interview could not continue.') } finally { setBusy(false) }
   }
@@ -193,15 +222,15 @@ export default function InterviewClient({ role, accessCode, voiceUri }: Props) {
     if (!answer) answer = await transcribeRecording(blob)
     if (!answer) { setBusy(false); setError('I did not catch that. Please speak again, then select Done speaking.'); startListening(); return }
     const next = [...transcript, { speaker: 'Candidate' as const, text: answer }]
-    spoken.current = ''; committed.current = ''; setHeardSomething(false); setTranscript(next); void askEmmy(next)
+    spoken.current = ''; committed.current = ''; setHeardSomething(false); setTranscript(next); void askGeorge(next)
   }
 
-  async function finish() { setDone(true); recognition.current?.stop(); window.speechSynthesis.cancel(); await fetch('/api/interview/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accessCode, role, candidateName: name, candidateEmail: email, transcript }) }); stream.current?.getTracks().forEach(track => track.stop()) }
+  async function finish() { setDone(true); setSpeaking(false); recognition.current?.stop(); cancelSpeech(); await fetch('/api/interview/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accessCode, role, candidateName: name, candidateEmail: email, transcript }) }); stream.current?.getTracks().forEach(track => track.stop()) }
 
   async function begin() {
     if (!name.trim()) return setError('Please enter your name before starting.')
     if (!email.trim() || !/^\S+@\S+\.\S+$/.test(email.trim())) return setError('Please enter a valid email address before starting.')
-    try { const media = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true }); stream.current = media; setStarted(true); void askEmmy([]) } catch { setError('Please allow camera and microphone access to join the interview.') }
+    try { const media = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true }); stream.current = media; setStarted(true); void askGeorge([]) } catch { setError('Please allow camera and microphone access to join the interview.') }
   }
 
   useEffect(() => {
@@ -217,9 +246,9 @@ export default function InterviewClient({ role, accessCode, voiceUri }: Props) {
     return () => { element.removeEventListener('loadedmetadata', markReady); element.removeEventListener('playing', markReady) }
   }, [started])
 
-  useEffect(() => () => { recognition.current?.stop(); window.speechSynthesis.cancel(); stream.current?.getTracks().forEach(track => track.stop()) }, [])
+  useEffect(() => () => { recognition.current?.stop(); cancelSpeech(); stream.current?.getTracks().forEach(track => track.stop()) }, [])
 
-  if (!started) return <main className="min-h-screen bg-[#f7f8f6] p-6 text-[#173f35]"><div className="mx-auto max-w-xl rounded-[2rem] bg-white p-8 shadow-xl"><img src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Care%20Intl%20logo-8dXiV9R7mb3d8yCbmDLtahqHcQJ2Xm.png" alt="CARE International" className="h-10" /><p className="mt-12 text-sm font-semibold uppercase tracking-[0.2em] text-[#e87518]">Live interview</p><h1 className="mt-3 text-4xl font-semibold">Meet Emmy Nana</h1><p className="mt-4 leading-7 text-[#5d7169]">This interview is for the <strong className="font-semibold text-[#173f35]">{role}</strong> position at CARE International.</p><p className="mt-4 text-sm leading-6 text-[#5d7169]">Enter your details below to begin your live interview with Emmy Nana.</p><p className="mt-4 text-sm text-[#6b7f77]">Emmy Nana will explain the role, compensation, locations, and documentation requirements aloud before the interview begins.</p><label className="mt-8 grid gap-2 text-sm font-semibold">Your full name<input required value={name} onChange={event => setName(event.target.value)} className="h-12 rounded-xl border px-4 font-normal" placeholder="Enter your name" /></label><label className="mt-4 grid gap-2 text-sm font-semibold">Email address<input required type="email" value={email} onChange={event => setEmail(event.target.value)} className="h-12 rounded-xl border px-4 font-normal" placeholder="you@example.com" /></label>{error && <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}<button onClick={begin} className="mt-6 w-full rounded-xl bg-[#e87518] px-5 py-3 font-semibold text-white">Join interview</button><p className="mt-4 text-sm text-[#6b7f77]">Your browser will request camera and microphone access.</p></div></main>
+  if (!started) return <main className="min-h-screen bg-[#f7f8f6] p-6 text-[#173f35]"><div className="mx-auto max-w-xl rounded-[2rem] bg-white p-8 shadow-xl"><img src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Care%20Intl%20logo-8dXiV9R7mb3d8yCbmDLtahqHcQJ2Xm.png" alt="CARE International" className="h-10" /><p className="mt-12 text-sm font-semibold uppercase tracking-[0.2em] text-[#e87518]">Live interview</p><h1 className="mt-3 text-4xl font-semibold">Meet George</h1><p className="mt-4 leading-7 text-[#5d7169]">This interview is for the <strong className="font-semibold text-[#173f35]">{role}</strong> position at CARE International.</p><p className="mt-4 text-sm leading-6 text-[#5d7169]">Enter your details below to begin your live interview with George.</p><p className="mt-4 text-sm text-[#6b7f77]">George will explain the role, compensation, locations, and documentation requirements aloud before the interview begins.</p><label className="mt-8 grid gap-2 text-sm font-semibold">Your full name<input required value={name} onChange={event => setName(event.target.value)} className="h-12 rounded-xl border px-4 font-normal" placeholder="Enter your name" /></label><label className="mt-4 grid gap-2 text-sm font-semibold">Email address<input required type="email" value={email} onChange={event => setEmail(event.target.value)} className="h-12 rounded-xl border px-4 font-normal" placeholder="you@example.com" /></label>{error && <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}<button onClick={begin} className="mt-6 w-full rounded-xl bg-[#e87518] px-5 py-3 font-semibold text-white">Join interview</button><p className="mt-4 text-sm text-[#6b7f77]">Your browser will request camera and microphone access.</p></div></main>
 
-  return <main className="min-h-screen bg-[#f7f8f6] p-4 text-[#173f35] sm:p-6"><div className="mx-auto max-w-7xl"><header className="flex items-center justify-between"><img src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Care%20Intl%20logo-8dXiV9R7mb3d8yCbmDLtahqHcQJ2Xm.png" alt="CARE International" className="h-9" /><span className="text-sm text-[#6b7f77]">{role}</span></header><section className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(360px,0.9fr)]"><div className="rounded-3xl bg-white p-4 text-center shadow-lg sm:p-6"><div className="relative flex min-h-[55vh] items-center justify-center overflow-hidden rounded-2xl bg-[#173f35]"><video ref={video} muted autoPlay playsInline className={`max-h-[72vh] w-full object-contain ${cameraReady ? 'opacity-100' : 'opacity-0'}`} aria-label="Your live camera preview" />{!cameraReady && <div className="absolute inset-0 grid place-items-center p-6 text-center text-white"><div><Camera className="mx-auto size-10 text-[#f5a15c]" /><p className="mt-3 font-semibold">Camera preview loading</p><p className="mt-1 text-sm text-white/75">Allow camera access to see your live video here.</p></div></div>}<span className="absolute bottom-3 left-3 rounded-full bg-black/50 px-3 py-1 text-xs font-semibold text-white">{cameraReady ? 'Live camera' : 'Camera starting'}</span></div><div className="mx-auto mt-6 grid size-24 place-items-center rounded-full bg-[#e87518] text-3xl font-semibold text-white">EN</div><h2 className="mt-4 text-xl font-semibold">Emmy Nana</h2><p className="text-sm text-[#6b7f77]">Professional interviewer</p></div><div className="rounded-3xl bg-white p-6 pb-24 shadow-lg sm:pb-6"><div className="flex items-center gap-3"><div className={`grid size-12 place-items-center rounded-full ${listening ? 'bg-[#e87518] text-white' : 'bg-[#e9f2ec] text-[#173f35]'}`}><Volume2 className="size-5" /></div><div><p className="font-semibold">{busy ? 'Emmy Nana is preparing the next question' : listening ? 'Your turn to speak' : done ? 'Interview complete' : 'Emmy Nana is listening'}</p><p className="text-sm text-[#6b7f77]">{listening ? 'Speak naturally, then select Done speaking.' : 'The conversation is private and voice-led.'}</p></div></div>{done ? <div className="mt-10 rounded-2xl bg-[#e9f2ec] p-6 text-center"><CheckCircle2 className="mx-auto size-10 text-[#36835d]" /><h2 className="mt-3 text-xl font-semibold">Thank you, {name}</h2><p className="mt-2 text-[#5d7169]">Your interview has been submitted for review.</p></div> : <div className="fixed inset-x-0 bottom-0 z-20 flex flex-wrap gap-2 border-t border-[#dbe5df] bg-white/95 p-3 shadow-[0_-8px_24px_rgba(23,63,53,0.12)] backdrop-blur sm:static sm:mt-10 sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none sm:backdrop-blur-0"><button type="button" onClick={submitAnswer} disabled={busy} className="rounded-xl bg-[#e87518] px-5 py-3 font-semibold text-white disabled:opacity-40">Done speaking</button><button type="button" onClick={() => listening ? stopListening() : startListening()} disabled={busy} className="rounded-xl border border-[#cbd9d1] px-5 py-3 font-semibold">{listening ? <MicOff className="mr-2 inline size-4" /> : <Mic className="mr-2 inline size-4" />}{listening ? 'Pause' : 'Speak'}</button><button type="button" onClick={toggleMicrophone} disabled={busy} className="rounded-xl border border-[#cbd9d1] px-4 py-3 font-semibold" aria-pressed={microphoneMuted}>{microphoneMuted ? <MicOff className="mr-2 inline size-4" /> : <Mic className="mr-2 inline size-4" />}{microphoneMuted ? 'Unmute' : 'Mute'}</button><button type="button" onClick={toggleLoudspeaker} className="rounded-xl border border-[#cbd9d1] px-4 py-3 font-semibold" aria-pressed={loudspeaker}><Volume2 className="mr-2 inline size-4" />{loudspeaker ? 'Loudspeaker on' : 'Loudspeaker off'}</button><button type="button" onClick={() => lastEmmyText.current && speak(lastEmmyText.current)} disabled={busy} className="rounded-xl border border-[#cbd9d1] px-4 py-3 font-semibold">Replay question</button><button type="button" onClick={finish} disabled={busy} className="ml-auto rounded-xl border border-red-200 px-5 py-3 font-semibold text-red-700"><Phone className="mr-2 inline size-4" />End interview</button></div>}{error && <p className="mt-5 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}</div></section></div></main>
+  return <main className="min-h-screen bg-[#f7f8f6] p-4 text-[#173f35] sm:p-6"><div className="mx-auto max-w-7xl"><header className="flex items-center justify-between"><img src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Care%20Intl%20logo-8dXiV9R7mb3d8yCbmDLtahqHcQJ2Xm.png" alt="CARE International" className="h-9" /><span className="text-sm text-[#6b7f77]">{role}</span></header><section className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(360px,0.9fr)]"><div className="rounded-3xl bg-white p-4 text-center shadow-lg sm:p-6"><div className="relative flex min-h-[55vh] items-center justify-center overflow-hidden rounded-2xl bg-[#173f35]"><video ref={video} muted autoPlay playsInline className={`max-h-[72vh] w-full object-contain ${cameraReady ? 'opacity-100' : 'opacity-0'}`} aria-label="Your live camera preview" />{!cameraReady && <div className="absolute inset-0 grid place-items-center p-6 text-center text-white"><div><Camera className="mx-auto size-10 text-[#f5a15c]" /><p className="mt-3 font-semibold">Camera preview loading</p><p className="mt-1 text-sm text-white/75">Allow camera access to see your live video here.</p></div></div>}<span className="absolute bottom-3 left-3 rounded-full bg-black/50 px-3 py-1 text-xs font-semibold text-white">{cameraReady ? 'Live camera' : 'Camera starting'}</span></div><div className="mx-auto mt-6 grid size-24 place-items-center rounded-full bg-[#e87518] text-3xl font-semibold text-white">G</div><h2 className="mt-4 text-xl font-semibold">George</h2><p className="text-sm text-[#6b7f77]">Professional interviewer</p></div><div className="rounded-3xl bg-white p-6 pb-24 shadow-lg sm:pb-6"><div className="flex items-center gap-3"><div className={`grid size-12 place-items-center rounded-full ${listening || speaking ? 'bg-[#e87518] text-white' : 'bg-[#e9f2ec] text-[#173f35]'}`}><Volume2 className="size-5" /></div><div><p className="font-semibold">{busy ? 'George is preparing the next question' : speaking ? 'George is speaking' : listening ? 'Your turn to speak' : done ? 'Interview complete' : 'George is listening'}</p><p className="text-sm text-[#6b7f77]">{speaking ? 'Listen to George; your microphone will reopen when he finishes.' : listening ? 'Speak naturally, then select Done speaking.' : 'The conversation is private and voice-led.'}</p></div></div>{done ? <div className="mt-10 rounded-2xl bg-[#e9f2ec] p-6 text-center"><CheckCircle2 className="mx-auto size-10 text-[#36835d]" /><h2 className="mt-3 text-xl font-semibold">Thank you, {name}</h2><p className="mt-2 text-[#5d7169]">Your interview has been submitted for review.</p></div> : <div className="fixed inset-x-0 bottom-0 z-20 flex flex-wrap gap-2 border-t border-[#dbe5df] bg-white/95 p-3 shadow-[0_-8px_24px_rgba(23,63,53,0.12)] backdrop-blur sm:static sm:mt-10 sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none sm:backdrop-blur-0"><button type="button" onClick={submitAnswer} disabled={busy || speaking} className="rounded-xl bg-[#e87518] px-5 py-3 font-semibold text-white disabled:opacity-40">Done speaking</button><button type="button" onClick={() => listening ? stopListening() : startListening()} disabled={busy} className="rounded-xl border border-[#cbd9d1] px-5 py-3 font-semibold">{listening ? <MicOff className="mr-2 inline size-4" /> : <Mic className="mr-2 inline size-4" />}{listening ? 'Pause' : 'Speak'}</button><button type="button" onClick={toggleMicrophone} disabled={busy} className="rounded-xl border border-[#cbd9d1] px-4 py-3 font-semibold" aria-pressed={microphoneMuted}>{microphoneMuted ? <MicOff className="mr-2 inline size-4" /> : <Mic className="mr-2 inline size-4" />}{microphoneMuted ? 'Unmute' : 'Mute'}</button><button type="button" onClick={toggleLoudspeaker} className="rounded-xl border border-[#cbd9d1] px-4 py-3 font-semibold" aria-pressed={loudspeaker}><Volume2 className="mr-2 inline size-4" />{loudspeaker ? 'Loudspeaker on' : 'Loudspeaker off'}</button><button type="button" onClick={() => lastGeorgeText.current && speak(lastGeorgeText.current)} disabled={busy} className="rounded-xl border border-[#cbd9d1] px-4 py-3 font-semibold">Replay question</button><button type="button" onClick={finish} disabled={busy} className="ml-auto rounded-xl border border-red-200 px-5 py-3 font-semibold text-red-700"><Phone className="mr-2 inline size-4" />End interview</button></div>}{error && <p className="mt-5 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}</div></section></div></main>
 }

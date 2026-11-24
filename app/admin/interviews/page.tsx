@@ -41,7 +41,7 @@ export default async function InterviewsPage() {
       <main className="min-w-0 flex-1 p-6 lg:p-12">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#f47700]">CARE International</p>
         <h1 className="mt-3 text-4xl font-semibold text-[#101b30]">Interviews</h1>
-        <p className="mt-3 max-w-2xl text-lg text-[#455c7d]">Track every interview invite, see who has attempted or is still pending, review completed Emmy Nana interviews, and record outcomes.</p>
+        <p className="mt-3 max-w-2xl text-lg text-[#455c7d]">Track every interview invite, see who has attempted or is still pending, review completed George interviews, and record outcomes.</p>
         <div className="mt-10"><InterviewLinkCreator positions={positions ?? []} /></div>
         <InterviewsBoard interviews={interviews} generatedAt={Date.now()} />
       </main>

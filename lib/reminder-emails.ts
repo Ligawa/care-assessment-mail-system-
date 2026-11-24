@@ -29,7 +29,7 @@ export function documentReminderEmail({ role, portalUrl, deadline }: { role: str
 export function interviewReminderEmail({ role, url, deadline }: { role: string; url: string; deadline: string }) {
   return shell({
     title: 'Reminder: Your AI-Powered Interview',
-    intro: `<p>This is a friendly reminder that your AI-powered interview for the <strong>${role}</strong> position at CARE International has not yet been completed.</p><p>The interview is conducted by Emmy Nana, our AI interview facilitator, through your browser using your camera and microphone. Your responses will be reviewed by the HR team.</p>`,
+    intro: `<p>This is a friendly reminder that your AI-powered interview for the <strong>${role}</strong> position at CARE International has not yet been completed.</p><p>The interview is conducted by George, our AI interview facilitator, through your browser using your camera and microphone. Your responses will be reviewed by the HR team.</p>`,
     panel: `<strong>Please complete your interview by ${deadline}.</strong><br>Find a quiet, well-lit space, allow camera and microphone access, and answer naturally.`,
     buttonLabel: 'START YOUR AI INTERVIEW',
     url,
