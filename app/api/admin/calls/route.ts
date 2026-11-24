@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CALL_AGENT_FIRST_MESSAGE, CALL_AGENT_ID, CALL_BACKGROUND_VOICE_DETECTION, CALL_GUARDRAILS_MARKER, CALL_PHONE_NUMBER_ID, CALL_REFERENCE_TOOL_NAME, CALL_TURN_EAGERNESS } from '@/lib/call-agent-guardrails'
+import { getElevenLabsErrorMessage } from '@/lib/elevenlabs-error'
 
 const outboundCallSchema = z.object({
   phoneNumber: z.string().trim().regex(/^\+[1-9]\d{7,14}$/, 'Enter a valid international phone number, including country code.'),
@@ -33,8 +34,8 @@ export async function GET() {
       url.searchParams.set('page_size', '50')
       url.searchParams.set('summary_mode', 'include')
       const response = await fetch(url, { headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY }, cache: 'no-store' })
-      const payload = await response.json()
-      if (!response.ok) throw new Error(payload.detail?.[0]?.msg || payload.detail || 'Unable to sync call history from ElevenLabs.')
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(getElevenLabsErrorMessage(payload, 'Unable to sync call history from ElevenLabs.'))
       const rows = (payload.conversations ?? []).map((call: Record<string, unknown>) => {
         const start = Number(call.start_time_unix_secs)
         return {
@@ -95,7 +96,7 @@ export async function POST(request: Request) {
     cache: 'no-store',
   })
   const result = await response.json().catch(() => ({}))
-  if (!response.ok) return NextResponse.json({ error: result.detail?.[0]?.msg || result.detail || result.message || 'ElevenLabs could not start the call.' }, { status: response.status >= 500 ? 502 : response.status })
+  if (!response.ok) return NextResponse.json({ error: getElevenLabsErrorMessage(result, 'ElevenLabs could not start the call.') }, { status: response.status >= 500 ? 502 : response.status })
 
   const conversationId = result.conversation_id
   const { data: call, error } = await admin.from('interview_phone_calls').insert({

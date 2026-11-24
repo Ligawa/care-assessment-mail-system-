@@ -2,13 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { CALL_AGENT_FIRST_MESSAGE, CALL_AGENT_GUARDRAILS, CALL_AGENT_ID, CALL_AGENT_NAME, CALL_BACKGROUND_VOICE_DETECTION, CALL_GUARDRAILS_MARKER, CALL_REFERENCE_TOOL_NAME, CALL_RETENTION_DAYS, CALL_TURN_EAGERNESS } from '@/lib/call-agent-guardrails'
 import { getCallReferenceLookupToken } from '@/lib/call-reference-auth'
-
-function providerError(payload: Record<string, unknown>, fallback: string) {
-  const detail = payload.detail
-  if (Array.isArray(detail) && typeof detail[0]?.msg === 'string') return detail[0].msg
-  if (typeof detail === 'string') return detail
-  return typeof payload.message === 'string' ? payload.message : fallback
-}
+import { getElevenLabsErrorMessage } from '@/lib/elevenlabs-error'
 
 async function ensureReferenceTool(requestUrl: string) {
   const apiKey = process.env.ELEVENLABS_API_KEY
@@ -20,7 +14,7 @@ async function ensureReferenceTool(requestUrl: string) {
   listUrl.searchParams.set('page_size', '100')
   const listResponse = await fetch(listUrl, { headers: { 'xi-api-key': apiKey }, cache: 'no-store' })
   const listPayload = await listResponse.json().catch(() => ({}))
-  if (!listResponse.ok) throw new Error(providerError(listPayload, 'Unable to find the reference verification tool.'))
+  if (!listResponse.ok) throw new Error(getElevenLabsErrorMessage(listPayload, 'Unable to find the reference verification tool.'))
 
   const existing = listPayload.tools?.find((tool: { id: string; tool_config?: { name?: string; type?: string } }) => tool.tool_config?.name === CALL_REFERENCE_TOOL_NAME)
   const toolConfig = {
@@ -55,7 +49,7 @@ async function ensureReferenceTool(requestUrl: string) {
     cache: 'no-store',
   })
   const toolPayload = await toolResponse.json().catch(() => ({}))
-  if (!toolResponse.ok) throw new Error(providerError(toolPayload, 'Unable to configure the reference verification tool.'))
+  if (!toolResponse.ok) throw new Error(getElevenLabsErrorMessage(toolPayload, 'Unable to configure the reference verification tool.'))
   if (typeof toolPayload.id !== 'string') throw new Error('ElevenLabs did not return an ID for the reference verification tool.')
   return toolPayload.id
 }
@@ -131,7 +125,7 @@ export async function POST(request: Request) {
   })
   if (!updateResponse.ok) {
     const error = await updateResponse.json().catch(() => ({}))
-    return NextResponse.json({ error: error.detail?.[0]?.msg || error.detail || 'Unable to update the ElevenLabs agent and retention policy.' }, { status: 502 })
+    return NextResponse.json({ error: getElevenLabsErrorMessage(error, 'Unable to update the ElevenLabs agent and retention policy.') }, { status: 502 })
   }
   return NextResponse.json({ guardrailsApplied: true, recordingEnabled: true, backgroundVoiceDetectionEnabled: CALL_BACKGROUND_VOICE_DETECTION, patientTurnTakingEnabled: true, retentionDays: CALL_RETENTION_DAYS, message: `Call verification is available; background-voice filtering and patient turn-taking are enabled; recording and ${CALL_RETENTION_DAYS}-day retention are active.` })
 }

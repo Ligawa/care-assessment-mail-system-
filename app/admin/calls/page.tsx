@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CALL_AGENT_FIRST_MESSAGE, CALL_AGENT_ID, CALL_BACKGROUND_VOICE_DETECTION, CALL_GUARDRAILS_MARKER, CALL_REFERENCE_TOOL_NAME, CALL_TURN_EAGERNESS } from '@/lib/call-agent-guardrails'
+import { getElevenLabsErrorMessage } from '@/lib/elevenlabs-error'
 import CallCenter from '@/components/call-center'
 
 export const dynamic = 'force-dynamic'
@@ -30,10 +31,7 @@ export default async function CallCenterPage() {
       const response = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${CALL_AGENT_ID}`, { headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY! }, cache: 'no-store' })
       const agent = await response.json().catch(() => ({}))
       if (!response.ok) {
-        const detail = agent.detail
-        providerError = Array.isArray(detail) && typeof detail[0]?.msg === 'string'
-          ? detail[0].msg
-          : typeof detail === 'string' ? detail : typeof agent.message === 'string' ? agent.message : 'ElevenLabs could not load the call agent.'
+        providerError = getElevenLabsErrorMessage(agent, 'ElevenLabs could not load the call agent.')
         providerConfigured = false
       } else {
         const agentConfig = agent.conversation_config?.agent
