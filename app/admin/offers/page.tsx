@@ -32,26 +32,29 @@ export default async function OffersPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user?.email?.toLowerCase().endsWith('@care-intrenational.org')) redirect('/admin/login')
 
-  const { data } = await supabase
+  const adminSupabase = createAdminClient()
+  const { data, error: offersError } = await adminSupabase
     .from('assessment_submissions')
     .select('id,full_name,email,offer_status,offer_response_status,offer_hr_reference,offer_job_title,offer_basic_salary,offer_sent_at,decision_at,offer_acceptance_deadline,offer_document_deadline,offer_error')
     .in('offer_status', ['sent', 'failed', 'generating'])
     .order('offer_sent_at', { ascending: false, nullsFirst: false })
+  if (offersError) throw new Error(`Could not load offers: ${offersError.message}`)
   const offers = (data ?? []) as OfferRow[]
   const sentOffers = offers.filter(offer => offer.offer_status === 'sent')
   const sent = sentOffers.length
-  const adminSupabase = createAdminClient()
   const checklistRows = sentOffers.flatMap(offer => OFFER_DOCUMENT_CHECKLIST.map(document => ({
     submission_id: offer.id,
     document_key: document.key,
     document_label: document.label,
   })))
   if (checklistRows.length) {
-    await adminSupabase.from('offer_document_submissions').upsert(checklistRows, { onConflict: 'submission_id,document_key', ignoreDuplicates: true })
+    const { error } = await adminSupabase.from('offer_document_submissions').upsert(checklistRows, { onConflict: 'submission_id,document_key', ignoreDuplicates: true })
+    if (error) throw new Error(`Could not initialize offer document checklists: ${error.message}`)
   }
-  const { data: documentRows } = sentOffers.length
+  const { data: documentRows, error: documentsError } = sentOffers.length
     ? await adminSupabase.from('offer_document_submissions').select('submission_id,document_key,document_label,status,reminder_count,last_reminder_at').in('submission_id', sentOffers.map(offer => offer.id))
-    : { data: [] as { submission_id: string; document_key: string; document_label: string; status: string; reminder_count: number; last_reminder_at: string | null }[] }
+    : { data: [] as { submission_id: string; document_key: string; document_label: string; status: string; reminder_count: number; last_reminder_at: string | null }[], error: null }
+  if (documentsError) throw new Error(`Could not load offer document checklists: ${documentsError.message}`)
   const offerDocumentCandidates = sentOffers.map(offer => {
     const candidateDocs = (documentRows ?? []).filter(row => row.submission_id === offer.id)
     const reminderCount = candidateDocs.reduce((maximum, row) => Math.max(maximum, row.reminder_count ?? 0), 0)
@@ -67,12 +70,14 @@ export default async function OffersPage() {
     }
   })
 
-  const { data: completedInvites } = await supabase.from('assessment_invites').select('submission_id').eq('status', 'completed').not('submission_id', 'is', null)
+  const { data: completedInvites, error: invitesError } = await adminSupabase.from('assessment_invites').select('submission_id').eq('status', 'completed').not('submission_id', 'is', null)
+  if (invitesError) throw new Error(`Could not load completed assessments: ${invitesError.message}`)
   const activeOfferIds = new Set(offers.filter(offer => offer.offer_status === 'sent' || offer.offer_status === 'generating').map(offer => offer.id))
   const eligibleIds = [...new Set((completedInvites ?? []).map(invite => invite.submission_id as string))].filter(id => !activeOfferIds.has(id))
-  const { data: eligibleData } = eligibleIds.length
-    ? await supabase.from('assessment_submissions').select('id,full_name,email,created_at,decision_at,offer_status').in('id', eligibleIds).eq('decision_status', 'passed').order('decision_at', { ascending: false, nullsFirst: false })
-    : { data: [] as { id: string; full_name: string; email: string; created_at: string; decision_at: string | null; offer_status: string | null }[] }
+  const { data: eligibleData, error: eligibleError } = eligibleIds.length
+    ? await adminSupabase.from('assessment_submissions').select('id,full_name,email,created_at,decision_at,offer_status').in('id', eligibleIds).eq('decision_status', 'passed').order('decision_at', { ascending: false, nullsFirst: false })
+    : { data: [] as { id: string; full_name: string; email: string; created_at: string; decision_at: string | null; offer_status: string | null }[], error: null }
+  if (eligibleError) throw new Error(`Could not load applicants ready for an offer: ${eligibleError.message}`)
   const eligible = eligibleData ?? []
   const directoryOfferIds = new Set(offers.map(offer => offer.id))
   const directoryApplicants = [
@@ -101,6 +106,7 @@ export default async function OffersPage() {
       status: 'ready' as const,
     })),
   ]
+  const readyToIssue = directoryApplicants.filter(applicant => applicant.status === 'ready').length
 
   return (
     <div className="min-h-screen bg-[#faf8f2] lg:flex">
@@ -110,14 +116,15 @@ export default async function OffersPage() {
         <h1 className="mt-3 text-4xl font-semibold text-[#101b30]">Offer letters</h1>
         <p className="mt-3 max-w-2xl text-lg text-[#455c7d]">Track conditional offers and post-offer documents. Offers are issued only to candidates who completed and passed their assessment; initial application document requests are tracked separately.</p>
 
-        <dl className="mt-8 grid max-w-xl gap-4 sm:grid-cols-2">
+        <dl className="mt-8 grid max-w-4xl gap-4 sm:grid-cols-3">
+          <div className="rounded-2xl border border-[#ded8ca] bg-white p-5"><dt className="text-sm text-[#455c7d]">Ready to issue</dt><dd className="mt-1 text-3xl font-semibold text-[#101b30]">{readyToIssue}</dd></div>
           <div className="rounded-2xl border border-[#ded8ca] bg-white p-5"><dt className="text-sm text-[#455c7d]">Offers sent</dt><dd className="mt-1 text-3xl font-semibold text-[#101b30]">{sent}</dd></div>
           <div className="rounded-2xl border border-[#ded8ca] bg-white p-5"><dt className="text-sm text-[#455c7d]">Needs attention</dt><dd className="mt-1 text-3xl font-semibold text-[#101b30]">{offers.length - sent}</dd></div>
         </dl>
 
-        <OfferDocumentTracker candidates={offerDocumentCandidates} documents={(documentRows ?? []) as { submission_id: string; document_key: string; document_label: string; status: 'pending' | 'received' | 'not_applicable'; reminder_count: number; last_reminder_at: string | null }[]} />
-
         <OfferApplicantDirectory applicants={directoryApplicants} />
+
+        <OfferDocumentTracker candidates={offerDocumentCandidates} documents={(documentRows ?? []) as { submission_id: string; document_key: string; document_label: string; status: 'pending' | 'received' | 'not_applicable'; reminder_count: number; last_reminder_at: string | null }[]} />
 
       </main>
     </div>
