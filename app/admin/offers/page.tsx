@@ -68,11 +68,11 @@ export default async function OffersPage() {
   })
 
   const { data: completedInvites } = await supabase.from('assessment_invites').select('submission_id').eq('status', 'completed').not('submission_id', 'is', null)
-  const offeredIds = new Set(offers.map(offer => offer.id))
-  const eligibleIds = [...new Set((completedInvites ?? []).map(invite => invite.submission_id as string))].filter(id => !offeredIds.has(id))
+  const activeOfferIds = new Set(offers.filter(offer => offer.offer_status === 'sent' || offer.offer_status === 'generating').map(offer => offer.id))
+  const eligibleIds = [...new Set((completedInvites ?? []).map(invite => invite.submission_id as string))].filter(id => !activeOfferIds.has(id))
   const { data: eligibleData } = eligibleIds.length
-    ? await supabase.from('assessment_submissions').select('id,full_name,email,created_at').in('id', eligibleIds).order('created_at', { ascending: false })
-    : { data: [] as { id: string; full_name: string; email: string; created_at: string }[] }
+    ? await supabase.from('assessment_submissions').select('id,full_name,email,created_at,offer_status').in('id', eligibleIds).eq('decision_status', 'passed').order('created_at', { ascending: false })
+    : { data: [] as { id: string; full_name: string; email: string; created_at: string; offer_status: string | null }[] }
   const eligible = eligibleData ?? []
 
   return (
@@ -92,13 +92,13 @@ export default async function OffersPage() {
 
         <section className="mt-8 rounded-3xl border border-[#ded8ca] bg-white p-5">
           <h2 className="text-xl font-semibold text-[#101b30]">Ready for an offer</h2>
-          <p className="mt-1 text-sm text-[#455c7d]">Candidates who completed their skills assessment and have not received an offer yet.</p>
-          {eligible.length === 0 ? <p className="mt-4 text-sm text-[#455c7d]">No completed candidates are waiting for an offer.</p> : (
+          <p className="mt-1 text-sm text-[#455c7d]">Only applicants marked as passed who completed their skills assessment appear here. Failed email attempts remain available to retry.</p>
+          {eligible.length === 0 ? <p className="mt-4 text-sm text-[#455c7d]">No passed applicants with completed assessments are waiting for an offer.</p> : (
             <ul className="mt-4 divide-y divide-[#ded8ca]">
               {eligible.map(candidate => (
                 <li key={candidate.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                   <div><p className="font-semibold text-[#101b30]">{candidate.full_name}</p><p className="text-sm text-[#455c7d]">{candidate.email}</p></div>
-                  <Link href={`/admin/candidates/${candidate.id}#offer-form`} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#f47700] px-4 text-sm font-semibold text-white transition hover:opacity-90"><FileText className="size-4" />Issue offer letter</Link>
+                  <Link href={`/admin/candidates/${candidate.id}#offer-form`} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#f47700] px-4 text-sm font-semibold text-white transition hover:opacity-90"><FileText className="size-4" />{candidate.offer_status === 'failed' ? 'Retry failed offer' : 'Issue offer letter'}</Link>
                 </li>
               ))}
             </ul>
