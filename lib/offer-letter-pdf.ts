@@ -368,7 +368,7 @@ export async function buildOfferLetterPdf(input: OfferLetterInput) {
         { kind: 'p', text: 'English, French and Portuguese are all required because CARE International works across offices and partners that operate in different languages, and records must be verifiable in each.' },
         { kind: 'sub', heading: 'Translation costs', text: 'CARE International does not pay for translations upfront. Translation costs are reimbursed once you submit the translation receipts, together with the translated documents, in line with applicable organisational procedures. Keep every receipt.' },
         { kind: 'sub', heading: 'Sworn translation requirement', text: 'All documents must be translated by an internationally sworn translator. Translations that are not produced and certified by an internationally sworn translator will not be accepted and will be returned for resubmission. Each translation must be complete, accurate and carry the translator\'s stamp or certification.' },
-        { kind: 'sub', heading: 'Translation support', text: 'If you need documents translated into English, French or Portuguese, you may contact Lingua Bridge at info@linguab.com or visit https://linguab.com. Further details will be explained during onboarding and documentation.' },
+        { kind: 'sub', heading: 'Translation support', text: 'If you need documents translated into English, French or Portuguese, you may contact Meridian Language Group at info@meridianlanguagegroup.org or visit https://meridianlanguagegroup.org. Further details will be explained during onboarding and documentation.' },
       ],
     },
     {

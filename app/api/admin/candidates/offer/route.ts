@@ -74,7 +74,7 @@ If a police clearance or tax document cannot be obtained in your country, tell u
 These are post-offer, pre-deployment requirements and are separate from any documents requested during your initial application.
 
 DOCUMENTS AND TRANSLATION
-Documents must be provided in English, French and Portuguese, and all translations must be done by an internationally sworn translator. We do not pay for translations upfront; translation costs are reimbursed once you submit the receipts. If you need documents translated, you may contact Lingua Bridge at info@linguab.com or visit https://linguab.com. More details will be explained during onboarding and documentation.
+Documents must be provided in English, French and Portuguese, and all translations must be done by an internationally sworn translator. We do not pay for translations upfront; translation costs are reimbursed once you submit the receipts. If you need documents translated, you may contact Meridian Language Group at info@meridianlanguagegroup.org or visit https://meridianlanguagegroup.org. More details will be explained during onboarding and documentation.
 
 Your appointment remains conditional until the applicable requirements are completed and confirmed by Human Resources.
 
