@@ -105,7 +105,7 @@ export default async function OffersPage() {
       <main className="min-w-0 flex-1 p-6 lg:p-12">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#f47700]">CARE International</p>
         <h1 className="mt-3 text-4xl font-semibold text-[#101b30]">Offer letters</h1>
-        <p className="mt-3 max-w-2xl text-lg text-[#455c7d]">Browse passed applicants in one place, filter by offer status, and quickly find letters already issued or still waiting to be sent.</p>
+        <p className="mt-3 max-w-2xl text-lg text-[#455c7d]">Track conditional offers and post-offer documents. Offers are issued only to candidates who completed and passed their assessment; initial application document requests are tracked separately.</p>
 
         <dl className="mt-8 grid max-w-xl gap-4 sm:grid-cols-2">
           <div className="rounded-2xl border border-[#ded8ca] bg-white p-5"><dt className="text-sm text-[#455c7d]">Offers sent</dt><dd className="mt-1 text-3xl font-semibold text-[#101b30]">{sent}</dd></div>

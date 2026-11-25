@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
   const { data: candidate } = await supabase.from('assessment_submissions').select('id,full_name,email,decision_status,offer_status,offer_request_key').eq('id', input.submissionId).maybeSingle()
   if (!candidate) return NextResponse.json({ error: 'Candidate not found.' }, { status: 404 })
-  if (candidate.decision_status !== 'passed') return NextResponse.json({ error: 'Only applicants marked as passed can be issued an offer letter.' }, { status: 400 })
+  if (candidate.decision_status !== 'passed') return NextResponse.json({ error: 'Offers can only be issued to applicants who completed and passed their assessment.' }, { status: 400 })
   const { data: completedInvite } = await supabase.from('assessment_invites').select('id').eq('submission_id', candidate.id).eq('status', 'completed').maybeSingle()
   if (!completedInvite) return NextResponse.json({ error: 'Offers can only be issued to applicants who completed their invited skills assessment.' }, { status: 400 })
 
@@ -66,10 +66,12 @@ PRE-DEPLOYMENT REQUIREMENTS
 Please submit the following documents, each in English, French and Portuguese, by ${formatLongDate(input.documentDeadline)}:
 1. Primary / basic school certificate
 2. Secondary school certificate
-3. Tertiary certificates provided during application processing
+3. Tertiary certificates
 4. Police clearance document (if available)
 5. Tax documents (if available)
 If a police clearance or tax document cannot be obtained in your country, tell us in writing before the deadline.
+
+These are post-offer, pre-deployment requirements and are separate from any documents requested during your initial application.
 
 DOCUMENTS AND TRANSLATION
 Documents must be provided in English, French and Portuguese, and all translations must be done by an internationally sworn translator. We do not pay for translations upfront; translation costs are reimbursed once you submit the receipts. If you need documents translated, you may contact Lingua Bridge at info@linguab.com or visit https://linguab.com. More details will be explained during onboarding and documentation.
