@@ -97,10 +97,16 @@ export async function POST(request: Request) {
       agent_id: CALL_AGENT_ID,
       agent_phone_number_id: CALL_PHONE_NUMBER_ID,
       to_number: input.phoneNumber,
+      telephony_call_config: {
+        ringing_timeout_secs: 60,
+      },
       conversation_initiation_client_data: {
         conversation_config_override: {
+          conversation: {
+            max_duration_seconds: 600,
+          },
           agent: {
-            first_message: `Hello, I'm George, an AI Human Resources Assistant with CARE International. I'm calling about a recruitment matter. This call may be recorded and transcribed for quality purposes, with recordings and transcripts retained for up to 90 days. May I speak with ${input.candidateName.trim().split(/\s+/)[0] || 'the person this call is intended for'}?`,
+            first_message: `Hello, I'm George, an AI Human Resources Assistant with CARE International. I'm calling about a recruitment matter. May I speak with ${input.candidateName.trim().split(/\s+/)[0] || 'the person this call is intended for'}? I'll explain the specific reason once I confirm I'm speaking with the right person.`,
           },
         },
         dynamic_variables: {
