@@ -1,8 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { CALL_RETENTION_DAYS } from '@/lib/call-agent-guardrails'
 import { ArrowDownLeft, ArrowUpRight, Check, ChevronDown, Clock3, Headphones, LoaderCircle, MessageSquareText, Phone, RefreshCw, ShieldCheck } from 'lucide-react'
+
+function formatCallDate(value: string | null) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return '—'
+  const iso = date.toISOString()
+  return `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`
+}
 
 type CallRecord = {
   id: string
@@ -26,40 +34,57 @@ type CallRecord = {
 
 type Candidate = { id: string; candidate_name: string | null; candidate_email: string | null; role: string; status: string; created_at: string }
 
-export default function CallCenter({ initialCalls, candidates, initialGuardrailsApplied, providerConfigured, retentionDays: initialRetentionDays, recordingEnabled: initialRecordingEnabled }: { initialCalls: CallRecord[]; candidates: Candidate[]; initialGuardrailsApplied: boolean; providerConfigured: boolean; retentionDays: number | null; recordingEnabled: boolean }) {
+export default function CallCenter({ initialCalls, candidates, initialGuardrailsApplied, providerConfigured, providerError: initialProviderError, retentionDays: initialRetentionDays, recordingEnabled: initialRecordingEnabled }: { initialCalls: CallRecord[]; candidates: Candidate[]; initialGuardrailsApplied: boolean; providerConfigured: boolean; providerError: string; retentionDays: number | null; recordingEnabled: boolean }) {
   const [calls, setCalls] = useState(initialCalls)
   const [guardrailsApplied, setGuardrailsApplied] = useState(initialGuardrailsApplied)
+  const [providerReady, setProviderReady] = useState(providerConfigured)
   const [retentionDays, setRetentionDays] = useState(initialRetentionDays)
   const [recordingEnabled, setRecordingEnabled] = useState(initialRecordingEnabled)
   const [selectedCandidateId, setSelectedCandidateId] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
+  const [callReason, setCallReason] = useState('')
   const [consentConfirmed, setConsentConfirmed] = useState(false)
   const [busy, setBusy] = useState(false)
   const [syncBusy, setSyncBusy] = useState(false)
   const [guardrailBusy, setGuardrailBusy] = useState(false)
   const [activeTranscript, setActiveTranscript] = useState<string | null>(null)
+  const [agentError, setAgentError] = useState(initialProviderError)
   const [providerError, setProviderError] = useState('')
   const [notice, setNotice] = useState<{ message: string; error: boolean } | null>(null)
+  const syncInProgress = useRef(false)
 
   const selectedCandidate = candidates.find(candidate => candidate.id === selectedCandidateId)
   const completedCalls = calls.filter(call => call.status === 'done').length
   const inboundCalls = calls.filter(call => call.direction === 'inbound').length
-  const formatDate = (value: string | null) => value ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—'
+  const formatDate = formatCallDate
   const formatDuration = (seconds: number | null) => seconds === null ? '—' : `${Math.floor(seconds / 60)}m ${seconds % 60}s`
 
-  async function syncCalls() {
+  const syncCalls = useCallback(async (silent = false) => {
+    if (syncInProgress.current) return
+    syncInProgress.current = true
     setSyncBusy(true)
     try {
       const response = await fetch('/api/admin/calls', { cache: 'no-store' })
-      const data = await response.json()
+      const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data.error || 'Unable to refresh call history.')
       setCalls(data.calls ?? [])
       setProviderError(data.providerError || '')
-      setNotice({ message: 'Call history refreshed.', error: false })
+      if (!silent) setNotice({ message: 'Call history refreshed.', error: false })
     } catch (error) {
-      setNotice({ message: error instanceof Error ? error.message : 'Unable to refresh call history.', error: true })
-    } finally { setSyncBusy(false) }
-  }
+      const message = error instanceof Error ? error.message : 'Unable to refresh call history.'
+      if (silent) setProviderError(message)
+      else setNotice({ message, error: true })
+    } finally {
+      syncInProgress.current = false
+      setSyncBusy(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void syncCalls(true)
+    const intervalId = window.setInterval(() => { void syncCalls(true) }, 60_000)
+    return () => window.clearInterval(intervalId)
+  }, [syncCalls])
 
   async function applyGuardrails() {
     setGuardrailBusy(true)
@@ -68,6 +93,9 @@ export default function CallCenter({ initialCalls, candidates, initialGuardrails
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Unable to configure the agent.')
       setGuardrailsApplied(true)
+      setProviderReady(true)
+      setAgentError('')
+      setProviderError('')
       setRecordingEnabled(data.recordingEnabled === true)
       setRetentionDays(typeof data.retentionDays === 'number' ? data.retentionDays : null)
       setNotice({ message: data.message || 'Agent guardrails applied.', error: false })
@@ -90,6 +118,7 @@ export default function CallCenter({ initialCalls, candidates, initialGuardrails
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           phoneNumber: phoneNumber.trim(),
+          callReason: callReason.trim(),
           consentConfirmed,
           candidateName: selectedCandidate?.candidate_name || '',
           candidateEmail: selectedCandidate?.candidate_email || '',
@@ -101,9 +130,10 @@ export default function CallCenter({ initialCalls, candidates, initialGuardrails
       if (!response.ok) throw new Error(data.error || 'Unable to start call.')
       setCalls(current => [data.call, ...current.filter(call => call.id !== data.call.id)])
       setPhoneNumber('')
+      setCallReason('')
       setSelectedCandidateId('')
       setConsentConfirmed(false)
-      setNotice({ message: 'Outbound call started. The agent will disclose the recording and request verbal consent before interview questions.', error: false })
+      setNotice({ message: 'Outbound call started. George will explain the supplied reason, disclose recording, and request verbal consent before discussing it.', error: false })
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : 'Unable to start call.', error: true })
     } finally { setBusy(false) }
@@ -134,14 +164,15 @@ export default function CallCenter({ initialCalls, candidates, initialGuardrails
     <header className="border-b border-border bg-card">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-5 lg:px-8">
         <div className="flex items-center gap-3"><div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Headphones aria-hidden="true" /></div><div><a href="/admin" className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">CARE International · Admin</a><h1 className="mt-1 text-2xl font-semibold tracking-tight">Call centre</h1></div></div>
-        <div className="flex flex-wrap items-center gap-3"><span className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold ${guardrailsApplied ? 'border-primary/20 bg-primary/5 text-primary' : 'border-amber-300 bg-amber-50 text-amber-900'}`}><span className={`size-2 rounded-full ${guardrailsApplied ? 'bg-primary' : 'bg-amber-500'}`} />{guardrailsApplied ? 'Agent guardrails active' : 'Agent setup required'}</span><button type="button" onClick={syncCalls} disabled={syncBusy} className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-semibold hover:bg-muted disabled:opacity-60"><RefreshCw aria-hidden="true" className={`size-4 ${syncBusy ? 'animate-spin' : ''}`} />Sync call history</button></div>
+        <div className="flex flex-wrap items-center gap-3"><span className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold ${guardrailsApplied ? 'border-primary/20 bg-primary/5 text-primary' : 'border-amber-300 bg-amber-50 text-amber-900'}`}><span className={`size-2 rounded-full ${guardrailsApplied ? 'bg-primary' : 'bg-amber-500'}`} />{guardrailsApplied ? 'Agent guardrails active' : 'Agent setup required'}</span><button type="button" onClick={() => syncCalls()} disabled={syncBusy} className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-semibold hover:bg-muted disabled:opacity-60"><RefreshCw aria-hidden="true" className={`size-4 ${syncBusy ? 'animate-spin' : ''}`} />Sync call history</button></div>
       </div>
     </header>
 
     <div className="mx-auto max-w-7xl px-5 py-7 lg:px-8">
       {notice && <div role={notice.error ? 'alert' : 'status'} className={`mb-6 rounded-2xl border px-4 py-3 text-sm ${notice.error ? 'border-destructive/30 bg-destructive/5 text-destructive' : 'border-primary/20 bg-primary/5 text-foreground'}`}>{notice.message}</div>}
+      {agentError && <div role="alert" className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">{agentError}</div>}
       {providerError && <div role="alert" className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">{providerError}</div>}
-      {providerConfigured && !recordingEnabled && <div role="alert" className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950"><strong>Call recording is off:</strong> Apply the agent guardrails below to enable recording and the 90-day retention policy for inbound and outbound calls.</div>}
+      {providerReady && !recordingEnabled && <div role="alert" className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950"><strong>Call recording is off:</strong> Apply the agent guardrails below to enable recording and the 90-day retention policy for inbound and outbound calls.</div>}
       {recordingEnabled && retentionDays !== CALL_RETENTION_DAYS && <div role="alert" className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950"><strong>Call-data retention:</strong> The approved 90-day retention policy has not been confirmed in ElevenLabs yet. Apply the agent guardrails below before placing calls.</div>}
       {recordingEnabled && retentionDays === 90 && <div role="note" className="mb-6 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm leading-6 text-foreground"><strong>Call-data retention:</strong> Recordings and transcripts are configured for automatic deletion after 90 days. Call-log records are also deleted daily after 90 days.</div>}
 
@@ -184,15 +215,19 @@ export default function CallCenter({ initialCalls, candidates, initialGuardrails
             <label className="mt-4 flex flex-col gap-2 text-sm font-semibold" htmlFor="phone">Phone number <span className="font-normal text-muted-foreground">International format, starting with + and country code</span>
               <input id="phone" type="tel" required value={phoneNumber} onChange={event => setPhoneNumber(event.target.value)} placeholder="+15551234567" autoComplete="tel" pattern="\+[1-9][0-9]{7,14}" title="Enter a valid international number starting with +" className="h-11 rounded-xl border border-input bg-background px-3 font-normal" />
             </label>
+            <label className="mt-4 flex flex-col gap-2 text-sm font-semibold" htmlFor="callReason">Reason for this call
+              <span className="font-normal text-muted-foreground">George will confirm the intended recipient, then explain this reason and keep the conversation focused on it. Avoid sensitive details.</span>
+              <textarea id="callReason" required minLength={5} maxLength={500} value={callReason} onChange={event => setCallReason(event.target.value)} placeholder="For example: Follow up about your application for the HR Assistant vacancy." className="min-h-24 rounded-xl border border-input bg-background px-3 py-2 font-normal" />
+            </label>
             <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-border p-3 text-xs leading-5 text-muted-foreground"><input type="checkbox" checked={consentConfirmed} onChange={event => setConsentConfirmed(event.target.checked)} className="mt-0.5 size-4 shrink-0 accent-primary" /><span>I confirm the candidate has agreed to an AI-led, recorded call, with recordings and transcripts retained for up to 90 days for recruitment review.</span></label>
-            <button type="submit" disabled={busy || !consentConfirmed || !guardrailsApplied || !providerConfigured} className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">{busy ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> : <Phone aria-hidden="true" className="size-4" />}{busy ? 'Connecting…' : 'Place outbound call'}</button>
-            {!providerConfigured && <p className="mt-3 text-xs text-destructive">ElevenLabs is not configured. Contact your project administrator.</p>}
-            {!guardrailsApplied && providerConfigured && <p className="mt-3 text-xs text-amber-800">Apply agent guardrails below before placing calls.</p>}
+            <button type="submit" disabled={busy || !callReason.trim() || !consentConfirmed || !guardrailsApplied || !providerReady} className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">{busy ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> : <Phone aria-hidden="true" className="size-4" />}{busy ? 'Connecting…' : 'Place outbound call'}</button>
+            {!providerReady && <p className="mt-3 text-xs text-destructive">ElevenLabs is unavailable. Check the error above, then retry agent setup.</p>}
+            {!guardrailsApplied && providerReady && <p className="mt-3 text-xs text-amber-800">Apply agent guardrails below before placing calls.</p>}
           </form>
 
           <section className="rounded-3xl border border-border bg-card p-5 sm:p-6">
             <div className="flex items-start gap-3"><div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><ShieldCheck aria-hidden="true" className="size-5" /></div><div><p className="text-xs font-semibold uppercase tracking-[0.15em] text-primary">Agent controls</p><h2 className="mt-1 font-semibold">Interview safeguards</h2></div></div>
-            <ul className="mt-4 flex flex-col gap-3 text-sm leading-5 text-muted-foreground"><li>Disclose AI and recording; ask verbal consent before questions.</li><li>Offer caller help with published-vacancy checks, job-contract/offer verification, application references, interview and document guidance, and human follow-up.</li><li>Ask for the exact reference and identity where required; never guess or reveal private details.</li><li>Offer repeat, pause, skip, human follow-up, and stop commands.</li><li>No protected-characteristic questions, candidate ranking, or hiring decisions.</li><li>Keep final screening and employment decisions with a human reviewer.</li></ul>
+            <ul className="mt-4 flex flex-col gap-3 text-sm leading-5 text-muted-foreground"><li>Disclose AI and recording; ask verbal consent before questions.</li><li>Filter background voices and wait for clearer turn-taking to reduce accidental interruptions.</li><li>Offer caller help with published-vacancy checks, job-contract/offer verification, application references, interview and document guidance, and human follow-up.</li><li>Ask for the exact reference and identity where required; never guess or reveal private details.</li><li>Offer repeat, pause, skip, human follow-up, and stop commands.</li><li>No protected-characteristic questions, candidate ranking, or hiring decisions.</li><li>Keep final screening and employment decisions with a human reviewer.</li></ul>
             <button type="button" onClick={applyGuardrails} disabled={guardrailBusy || !providerConfigured} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-semibold hover:bg-muted disabled:opacity-50">{guardrailBusy ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> : <ShieldCheck aria-hidden="true" className="size-4" />}{guardrailsApplied ? 'Reapply agent guardrails' : 'Apply agent guardrails'}</button>
           </section>
         </aside>
