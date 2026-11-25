@@ -5,12 +5,13 @@ import { useMemo, useState } from 'react'
 import { Download, FileText, Search } from 'lucide-react'
 
 type ApplicantStatus = 'ready' | 'sent' | 'failed' | 'generating'
-type FilterStatus = 'all' | 'ready' | 'issued' | 'attention'
+type FilterStatus = 'all' | 'awaiting' | 'received' | 'attention'
 
 type Applicant = {
   id: string
   fullName: string
   email: string
+  passedAt: string | null
   jobTitle: string | null
   reference: string | null
   salary: string
@@ -20,23 +21,24 @@ type Applicant = {
 }
 
 const filters: { key: FilterStatus; label: string }[] = [
-  { key: 'all', label: 'All applicants' },
-  { key: 'ready', label: 'To be issued' },
-  { key: 'issued', label: 'Already issued' },
+  { key: 'all', label: 'All passed applicants' },
+  { key: 'awaiting', label: 'Offer not received' },
+  { key: 'received', label: 'Offer received' },
   { key: 'attention', label: 'Needs attention' },
 ]
 
 const statusLabel: Record<ApplicantStatus, string> = {
   ready: 'Ready to issue',
-  sent: 'Issued',
+  sent: 'Offer received',
   failed: 'Failed',
   generating: 'Generating',
 }
+const passedDateFormat = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeZone: 'UTC' })
 
 function matchesFilter(applicant: Applicant, filter: FilterStatus) {
   if (filter === 'all') return true
-  if (filter === 'ready') return applicant.status === 'ready' || applicant.status === 'failed'
-  if (filter === 'issued') return applicant.status === 'sent'
+  if (filter === 'awaiting') return applicant.status !== 'sent'
+  if (filter === 'received') return applicant.status === 'sent'
   return applicant.status === 'failed' || applicant.status === 'generating'
 }
 
@@ -46,19 +48,25 @@ export default function OfferApplicantDirectory({ applicants }: { applicants: Ap
 
   const counts = useMemo(() => ({
     all: applicants.length,
-    ready: applicants.filter(applicant => applicant.status === 'ready' || applicant.status === 'failed').length,
-    issued: applicants.filter(applicant => applicant.status === 'sent').length,
+    awaiting: applicants.filter(applicant => applicant.status !== 'sent').length,
+    received: applicants.filter(applicant => applicant.status === 'sent').length,
     attention: applicants.filter(applicant => applicant.status === 'failed' || applicant.status === 'generating').length,
   }), [applicants])
 
   const visibleApplicants = useMemo(() => {
     const query = search.trim().toLowerCase()
-    return applicants.filter(applicant => {
-      if (!matchesFilter(applicant, filter)) return false
-      if (!query) return true
-      return [applicant.fullName, applicant.email, applicant.jobTitle, applicant.reference]
-        .some(value => value?.toLowerCase().includes(query))
-    })
+    return [...applicants]
+      .sort((left, right) => {
+        const leftDate = left.passedAt ? new Date(left.passedAt).getTime() : Number.NEGATIVE_INFINITY
+        const rightDate = right.passedAt ? new Date(right.passedAt).getTime() : Number.NEGATIVE_INFINITY
+        return rightDate - leftDate || left.fullName.localeCompare(right.fullName)
+      })
+      .filter(applicant => {
+        if (!matchesFilter(applicant, filter)) return false
+        if (!query) return true
+        return [applicant.fullName, applicant.email, applicant.jobTitle, applicant.reference]
+          .some(value => value?.toLowerCase().includes(query))
+      })
   }, [applicants, filter, search])
 
   return (
@@ -66,7 +74,7 @@ export default function OfferApplicantDirectory({ applicants }: { applicants: Ap
       <div className="flex flex-col gap-4 border-b border-[#ded8ca] p-5">
         <div>
           <h2 className="text-xl font-semibold text-[#101b30]">Offer applicants</h2>
-          <p className="mt-1 text-sm text-[#455c7d]">Browse passed applicants, find those awaiting an offer, and revisit issued letters.</p>
+          <p className="mt-1 text-sm text-[#455c7d]">Passed applicants are sorted by the date they were marked as passed, newest first. Filter by whether an offer was received.</p>
         </div>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-2" role="group" aria-label="Filter offer applicants">
@@ -102,16 +110,17 @@ export default function OfferApplicantDirectory({ applicants }: { applicants: Ap
       {applicants.length === 0 ? (
         <div className="flex flex-col items-center gap-3 p-12 text-center text-[#455c7d]">
           <FileText className="size-8 text-[#f47700]" aria-hidden="true" />
-          <p>No passed applicants with completed assessments are waiting for an offer or have an issued offer yet.</p>
+          <p>No passed applicants with completed assessments are waiting for an offer or have received one yet.</p>
         </div>
       ) : visibleApplicants.length === 0 ? (
         <p className="p-8 text-center text-sm text-[#455c7d]">No applicants match this filter. Try another status or search term.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-left text-sm">
+          <table className="w-full min-w-[1000px] text-left text-sm">
             <thead className="border-b border-[#ded8ca] text-[#455c7d]">
               <tr>
                 <th className="px-5 py-4 font-semibold">Applicant</th>
+                <th className="px-5 py-4 font-semibold">Passed on</th>
                 <th className="px-5 py-4 font-semibold">Role</th>
                 <th className="px-5 py-4 font-semibold">Reference</th>
                 <th className="px-5 py-4 font-semibold">Salary (USD/month)</th>
@@ -128,6 +137,7 @@ export default function OfferApplicantDirectory({ applicants }: { applicants: Ap
                     <Link href={`/admin/candidates/${applicant.id}`} className="font-semibold text-[#101b30] hover:text-[#f47700]">{applicant.fullName}</Link>
                     <p className="text-xs text-[#455c7d]">{applicant.email}</p>
                   </td>
+                  <td className="px-5 py-4 text-[#455c7d]">{applicant.passedAt ? passedDateFormat.format(new Date(applicant.passedAt)) : '—'}</td>
                   <td className="px-5 py-4 text-[#101b30]">{applicant.jobTitle ?? '—'}</td>
                   <td className="px-5 py-4 font-mono text-xs text-[#455c7d]">{applicant.reference ?? '—'}</td>
                   <td className="px-5 py-4 text-[#101b30]">{applicant.salary}</td>

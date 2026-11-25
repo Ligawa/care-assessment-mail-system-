@@ -18,6 +18,7 @@ type OfferRow = {
   offer_job_title: string | null
   offer_basic_salary: number | null
   offer_sent_at: string | null
+  decision_at: string | null
   offer_acceptance_deadline: string | null
   offer_document_deadline: string | null
   offer_error: string | null
@@ -33,7 +34,7 @@ export default async function OffersPage() {
 
   const { data } = await supabase
     .from('assessment_submissions')
-    .select('id,full_name,email,offer_status,offer_response_status,offer_hr_reference,offer_job_title,offer_basic_salary,offer_sent_at,offer_acceptance_deadline,offer_document_deadline,offer_error')
+    .select('id,full_name,email,offer_status,offer_response_status,offer_hr_reference,offer_job_title,offer_basic_salary,offer_sent_at,decision_at,offer_acceptance_deadline,offer_document_deadline,offer_error')
     .in('offer_status', ['sent', 'failed', 'generating'])
     .order('offer_sent_at', { ascending: false, nullsFirst: false })
   const offers = (data ?? []) as OfferRow[]
@@ -70,8 +71,8 @@ export default async function OffersPage() {
   const activeOfferIds = new Set(offers.filter(offer => offer.offer_status === 'sent' || offer.offer_status === 'generating').map(offer => offer.id))
   const eligibleIds = [...new Set((completedInvites ?? []).map(invite => invite.submission_id as string))].filter(id => !activeOfferIds.has(id))
   const { data: eligibleData } = eligibleIds.length
-    ? await supabase.from('assessment_submissions').select('id,full_name,email,created_at,offer_status').in('id', eligibleIds).eq('decision_status', 'passed').order('created_at', { ascending: false })
-    : { data: [] as { id: string; full_name: string; email: string; created_at: string; offer_status: string | null }[] }
+    ? await supabase.from('assessment_submissions').select('id,full_name,email,created_at,decision_at,offer_status').in('id', eligibleIds).eq('decision_status', 'passed').order('decision_at', { ascending: false, nullsFirst: false })
+    : { data: [] as { id: string; full_name: string; email: string; created_at: string; decision_at: string | null; offer_status: string | null }[] }
   const eligible = eligibleData ?? []
   const directoryOfferIds = new Set(offers.map(offer => offer.id))
   const directoryApplicants = [
@@ -79,6 +80,7 @@ export default async function OffersPage() {
       id: offer.id,
       fullName: offer.full_name,
       email: offer.email,
+      passedAt: offer.decision_at,
       jobTitle: offer.offer_job_title,
       reference: offer.offer_hr_reference,
       salary: offer.offer_basic_salary ? `USD ${Number(offer.offer_basic_salary).toLocaleString('en-US')}` : '—',
@@ -90,6 +92,7 @@ export default async function OffersPage() {
       id: candidate.id,
       fullName: candidate.full_name,
       email: candidate.email,
+      passedAt: candidate.decision_at,
       jobTitle: null,
       reference: null,
       salary: '—',
