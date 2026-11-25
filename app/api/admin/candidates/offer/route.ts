@@ -3,6 +3,7 @@ import { Resend } from 'resend'
 import { createClient } from '@/lib/supabase/server'
 import { HR_CONTACT, buildOfferLetterPdf, formatLongDate, formatMonthlySalary } from '@/lib/offer-letter-pdf'
 import { offerSchema } from '@/lib/offer-letter-schema'
+import { CARE_CONTACT_NUMBER } from '@/lib/email-contact'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 const candidateIdFragment = (id: string) => id.replaceAll('-', '').slice(0, 8).toUpperCase()
@@ -77,10 +78,7 @@ Your appointment remains conditional until the applicable requirements are compl
 QUESTIONS
 For questions, reply to this email and quote HR reference ${hrReference}.
 
-Kind regards,
-
-${HR_CONTACT}
-CARE International`
+Kind regards,\n\n${HR_CONTACT}\nCARE International\nContact number: ${CARE_CONTACT_NUMBER}`
 
   const sent = await resend.emails.send({
     from: 'CARE International <hr@care-intrnational.org>',

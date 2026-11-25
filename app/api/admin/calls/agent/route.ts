@@ -101,12 +101,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to configure the reference verification tool.' }, { status: 502 })
   }
   const toolIds = Array.isArray(currentPrompt.tool_ids) ? currentPrompt.tool_ids.filter((id: unknown): id is string => typeof id === 'string') : []
+  const promptConfig = { ...currentPrompt, prompt, tool_ids: [...new Set([...toolIds, referenceToolId])] }
+  delete promptConfig.tools
   const updateResponse = await fetch(url, {
     method: 'PATCH',
     headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       conversation_config: {
-        agent: { ...currentAgent, first_message: CALL_AGENT_FIRST_MESSAGE, prompt: { ...currentPrompt, prompt, tool_ids: [...new Set([...toolIds, referenceToolId])] } },
+        agent: { ...currentAgent, first_message: CALL_AGENT_FIRST_MESSAGE, prompt: promptConfig },
       },
       platform_settings: {
         ...current.platform_settings,
