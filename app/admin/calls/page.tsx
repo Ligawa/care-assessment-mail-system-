@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CALL_AGENT_FIRST_MESSAGE, CALL_AGENT_ID, CALL_BACKGROUND_VOICE_DETECTION, CALL_GUARDRAILS_MARKER, CALL_GUARDRAILS_VERSION_MARKER, CALL_INBOUND_MENU_MARKER, CALL_REFERENCE_TOOL_NAME, CALL_TURN_EAGERNESS } from '@/lib/call-agent-guardrails'
 import { getElevenLabsErrorMessage } from '@/lib/elevenlabs-error'
+import AdminSidebar from '@/components/admin-sidebar'
 import CallCenter from '@/components/call-center'
 
 export const dynamic = 'force-dynamic'
@@ -51,5 +52,5 @@ export default async function CallCenterPage() {
     }
   }
 
-  return <CallCenter initialCalls={calls ?? []} candidates={candidates ?? []} initialGuardrailsApplied={guardrailsApplied} providerConfigured={providerConfigured} providerError={providerError} retentionDays={retentionDays} recordingEnabled={recordingEnabled} />
+  return <div className="min-h-screen bg-[#faf8f2] lg:flex"><AdminSidebar /><div className="min-w-0 flex-1"><CallCenter initialCalls={calls ?? []} candidates={candidates ?? []} initialGuardrailsApplied={guardrailsApplied} providerConfigured={providerConfigured} providerError={providerError} retentionDays={retentionDays} recordingEnabled={recordingEnabled} /></div></div>
 }
