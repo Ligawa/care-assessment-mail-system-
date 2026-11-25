@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { CALL_AGENT_FIRST_MESSAGE, CALL_AGENT_ID, CALL_BACKGROUND_VOICE_DETECTION, CALL_GUARDRAILS_MARKER, CALL_GUARDRAILS_VERSION_MARKER, CALL_PHONE_NUMBER_ID, CALL_REFERENCE_TOOL_NAME, CALL_TURN_EAGERNESS } from '@/lib/call-agent-guardrails'
+import { CALL_AGENT_FIRST_MESSAGE, CALL_AGENT_ID, CALL_BACKGROUND_VOICE_DETECTION, CALL_GUARDRAILS_MARKER, CALL_GUARDRAILS_VERSION_MARKER, CALL_INBOUND_MENU_MARKER, CALL_PHONE_NUMBER_ID, CALL_REFERENCE_TOOL_NAME, CALL_TURN_EAGERNESS } from '@/lib/call-agent-guardrails'
 import { getElevenLabsErrorMessage } from '@/lib/elevenlabs-error'
 
 const outboundCallSchema = z.object({
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
   const prompt = agentConfig?.prompt?.prompt
   const patientTurnTakingEnabled = agent.conversation_config?.turn?.turn_eagerness === CALL_TURN_EAGERNESS
   const backgroundVoiceDetectionEnabled = agent.conversation_config?.vad?.background_voice_detection === CALL_BACKGROUND_VOICE_DETECTION
-  if (!agentResponse.ok || typeof prompt !== 'string' || !prompt.includes(CALL_GUARDRAILS_MARKER) || !prompt.includes(CALL_GUARDRAILS_VERSION_MARKER) || !prompt.includes(CALL_REFERENCE_TOOL_NAME) || agentConfig?.first_message !== CALL_AGENT_FIRST_MESSAGE || agent.platform_settings?.privacy?.record_voice !== true || !patientTurnTakingEnabled || !backgroundVoiceDetectionEnabled) {
+  if (!agentResponse.ok || typeof prompt !== 'string' || !prompt.includes(CALL_GUARDRAILS_MARKER) || !prompt.includes(CALL_GUARDRAILS_VERSION_MARKER) || !prompt.includes(CALL_INBOUND_MENU_MARKER) || !prompt.includes(CALL_REFERENCE_TOOL_NAME) || agentConfig?.first_message !== CALL_AGENT_FIRST_MESSAGE || agent.platform_settings?.privacy?.record_voice !== true || !patientTurnTakingEnabled || !backgroundVoiceDetectionEnabled) {
     return NextResponse.json({ error: 'Apply the required AI interview guardrails, noise filtering, patient turn-taking, and recording settings before placing a call.' }, { status: 409 })
   }
 
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
       conversation_initiation_client_data: {
         conversation_config_override: {
           agent: {
-            first_message: `Hello, I'm George, an AI Human Resources Assistant with CARE International. I'm calling about a recruitment matter. This call may be recorded and transcribed for recruitment review, with recordings and transcripts retained for up to 90 days. May I speak with ${input.candidateName.trim().split(/\s+/)[0] || 'the person this call is intended for'}?`,
+            first_message: `Hello, I'm George, an AI Human Resources Assistant with CARE International. I'm calling about a recruitment matter. This call may be recorded and transcribed for quality purposes, with recordings and transcripts retained for up to 90 days. May I speak with ${input.candidateName.trim().split(/\s+/)[0] || 'the person this call is intended for'}?`,
           },
         },
         dynamic_variables: {
