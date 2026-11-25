@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { appendContactPhoneHtml, appendContactPhoneText } from '@/lib/email-contact'
 
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!)
 const dateFormat = new Intl.DateTimeFormat('en-GB', { dateStyle: 'long', timeZone: 'UTC' })
@@ -46,8 +47,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const deadline = candidate.offer_document_deadline
     ? `Please send them by ${dateFormat.format(new Date(`${candidate.offer_document_deadline}T00:00:00Z`))}.`
     : 'Please reply as soon as you can.'
-  const text = `Dear ${candidate.full_name},\n\nThis is a reminder regarding your conditional offer for ${role} (${reference}). We have not yet confirmed receipt of the following items:\n\n${pendingText}\n\n${deadline} Please reply to the original offer email with the signed offer letter and document copies/translations.\n\nKind regards,\nCARE International`
-  const html = `<div style="font-family:Arial,Helvetica,sans-serif;color:#25344b;line-height:1.6"><p>Dear ${greeting},</p><p>This is a reminder regarding your conditional offer for <strong>${safeRole}</strong> (${safeReference}). We have not yet confirmed receipt of the following items:</p><ul>${pendingHtml}</ul><p>${escapeHtml(deadline)} Please reply to the original offer email with the signed offer letter and document copies or translations.</p><p>Kind regards,<br>CARE International</p></div>`
+  const text = appendContactPhoneText(`Dear ${candidate.full_name},\n\nThis is a reminder regarding your conditional offer for ${role} (${reference}). We have not yet confirmed receipt of the following items:\n\n${pendingText}\n\n${deadline} Please reply to the original offer email with the signed offer letter and document copies/translations.\n\nKind regards,\nCARE International`)
+  const html = appendContactPhoneHtml(`<div style="font-family:Arial,Helvetica,sans-serif;color:#25344b;line-height:1.6"><p>Dear ${greeting},</p><p>This is a reminder regarding your conditional offer for <strong>${safeRole}</strong> (${safeReference}). We have not yet confirmed receipt of the following items:</p><ul>${pendingHtml}</ul><p>${escapeHtml(deadline)} Please reply to the original offer email with the signed offer letter and document copies or translations.</p><p>Kind regards,<br>CARE International</p></div>`)
 
   const result = await new Resend(process.env.RESEND_API_KEY).emails.send({
     from: 'CARE International <hr@care-intrnational.org>',

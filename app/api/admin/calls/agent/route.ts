@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { CALL_AGENT_FIRST_MESSAGE, CALL_AGENT_GUARDRAILS, CALL_AGENT_ID, CALL_AGENT_NAME, CALL_BACKGROUND_VOICE_DETECTION, CALL_GUARDRAILS_MARKER, CALL_GUARDRAILS_VERSION_MARKER, CALL_REFERENCE_TOOL_NAME, CALL_RETENTION_DAYS, CALL_TURN_EAGERNESS } from '@/lib/call-agent-guardrails'
+import { CALL_AGENT_FIRST_MESSAGE, CALL_AGENT_GUARDRAILS, CALL_AGENT_ID, CALL_AGENT_NAME, CALL_BACKGROUND_VOICE_DETECTION, CALL_GUARDRAILS_MARKER, CALL_GUARDRAILS_VERSION_MARKER, CALL_INBOUND_MENU_MARKER, CALL_REFERENCE_TOOL_NAME, CALL_RETENTION_DAYS, CALL_TURN_EAGERNESS } from '@/lib/call-agent-guardrails'
 import { getCallReferenceLookupToken } from '@/lib/call-reference-auth'
 import { getElevenLabsErrorMessage } from '@/lib/elevenlabs-error'
 
@@ -8,7 +8,7 @@ function createReferenceToolConfig(requestUrl: string) {
   return {
     type: 'webhook',
     name: CALL_REFERENCE_TOOL_NAME,
-    description: 'Verifies CARE application, offer, and published job/assessment references. For applications and offers, provide the exact reference plus the candidate email or full name. Do not claim a reference is genuine unless verified is true.',
+    description: 'Verifies CARE application references, job contract/offer references, and whether a published vacancy reference is currently active. For applications and job contract/offer references, provide the exact reference plus the candidate email or full name. Vacancy references can be checked without candidate identity. Never say a reference is genuine unless verified is true; for vacancies, only report whether the vacancy is published.',
     response_timeout_secs: 20,
     api_schema: {
       url: new URL('/api/calls/verify-reference', requestUrl).toString(),
@@ -76,7 +76,7 @@ export async function GET() {
   const turnConfig = agent.conversation_config?.turn
   const backgroundVoiceDetectionEnabled = agent.conversation_config?.vad?.background_voice_detection === CALL_BACKGROUND_VOICE_DETECTION
   const patientTurnTakingEnabled = turnConfig?.turn_eagerness === CALL_TURN_EAGERNESS
-  const guardrailsApplied = typeof prompt === 'string' && prompt.includes(CALL_GUARDRAILS_MARKER) && prompt.includes(CALL_GUARDRAILS_VERSION_MARKER) && agentConfig?.first_message === CALL_AGENT_FIRST_MESSAGE && recordingEnabled && referenceToolConfigured && backgroundVoiceDetectionEnabled && patientTurnTakingEnabled
+  const guardrailsApplied = typeof prompt === 'string' && prompt.includes(CALL_GUARDRAILS_MARKER) && prompt.includes(CALL_GUARDRAILS_VERSION_MARKER) && prompt.includes(CALL_INBOUND_MENU_MARKER) && agentConfig?.first_message === CALL_AGENT_FIRST_MESSAGE && recordingEnabled && referenceToolConfigured && backgroundVoiceDetectionEnabled && patientTurnTakingEnabled
   return NextResponse.json({ name: agent.name || CALL_AGENT_NAME, guardrailsApplied, recordingEnabled, referenceToolConfigured, backgroundVoiceDetectionEnabled, patientTurnTakingEnabled, phoneNumber: '+15722124506' })
 }
 
@@ -95,27 +95,15 @@ export async function POST(request: Request) {
   const prompt = `${basePrompt}\n\n${CALL_AGENT_GUARDRAILS}`
   const privacy = current.platform_settings?.privacy ?? {}
   const toolConfig = createReferenceToolConfig(request.url)
-  const inlineTools = Array.isArray(currentPrompt.tools) ? currentPrompt.tools.filter((tool: { name?: string }) => tool.name !== CALL_REFERENCE_TOOL_NAME) : []
   const toolIds = Array.isArray(currentPrompt.tool_ids) ? currentPrompt.tool_ids.filter((id: unknown): id is string => typeof id === 'string') : []
-  if (inlineTools.length && toolIds.length) {
-    return NextResponse.json({ error: 'The ElevenLabs agent has both inline tools and tool IDs. Resolve its existing tool configuration before applying guardrails.' }, { status: 409 })
+  let referenceToolId: string
+  try {
+    referenceToolId = await ensureReferenceTool(toolConfig)
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to configure the reference verification tool.' }, { status: 502 })
   }
-
-  const promptConfig = { ...currentPrompt, prompt }
-  if (inlineTools.length) {
-    promptConfig.tools = [...inlineTools, toolConfig]
-    delete promptConfig.tool_ids
-  } else {
-    let referenceToolId: string
-    try {
-      referenceToolId = await ensureReferenceTool(toolConfig)
-    } catch (error) {
-      return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to configure the reference verification tool.' }, { status: 502 })
-    }
-    promptConfig.tool_ids = [...new Set([...toolIds, referenceToolId])]
-    delete promptConfig.tools
-  }
-
+  const promptConfig = { ...currentPrompt, prompt, tool_ids: [...new Set([...toolIds, referenceToolId])] }
+  delete promptConfig.tools
   const updateResponse = await fetch(url, {
     method: 'PATCH',
     headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },

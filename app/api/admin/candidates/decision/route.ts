@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
+import { appendContactPhoneHtml, appendContactPhoneText } from '@/lib/email-contact'
 
 const schema = z.object({ submissionId: z.string().uuid(), decision: z.enum(['passed', 'not_passed']) })
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -20,8 +21,8 @@ export async function POST(request: Request) {
   if (decisionUpdateError) return NextResponse.json({ error: `Unable to save candidate decision: ${decisionUpdateError.message}` }, { status: 500 })
   const passed = parsed.data.decision === 'passed'
   const subject = passed ? 'CARE International assessment update' : 'CARE International assessment outcome'
-  const text = passed ? `Dear ${candidate.full_name},\n\nThank you for completing your assessment. We are pleased to let you know that you have passed this stage of the process. Our team will be in touch with next steps.\n\nKind regards,\nCARE International` : `Dear ${candidate.full_name},\n\nThank you for completing your assessment and for your interest in CARE International. After careful review, we will not be progressing your application at this stage. We appreciate the time you invested and wish you well.\n\nKind regards,\nCARE International`
-  const html = `<p>Dear ${candidate.full_name},</p><p>${passed ? 'Thank you for completing your assessment. We are pleased to let you know that you have passed this stage of the process. Our team will be in touch with next steps.' : 'Thank you for completing your assessment and for your interest in CARE International. After careful review, we will not be progressing your application at this stage. We appreciate the time you invested and wish you well.'}</p><p>Kind regards,<br />CARE International</p>`
+  const text = appendContactPhoneText(passed ? `Dear ${candidate.full_name},\n\nThank you for completing your assessment. We are pleased to let you know that you have passed this stage of the process. Our team will be in touch with next steps.\n\nKind regards,\nCARE International` : `Dear ${candidate.full_name},\n\nThank you for completing your assessment and for your interest in CARE International. After careful review, we will not be progressing your application at this stage. We appreciate the time you invested and wish you well.\n\nKind regards,\nCARE International`)
+  const html = appendContactPhoneHtml(`<p>Dear ${candidate.full_name},</p><p>${passed ? 'Thank you for completing your assessment. We are pleased to let you know that you have passed this stage of the process. Our team will be in touch with next steps.' : 'Thank you for completing your assessment and for your interest in CARE International. After careful review, we will not be progressing your application at this stage. We appreciate the time you invested and wish you well.'}</p><p>Kind regards,<br />CARE International</p>`)
 
   try {
     const { error: sendError } = await resend.emails.send({ from: 'CARE International <hr@care-intrnational.org>', to: [candidate.email.trim()], subject, html, text })
